@@ -1,0 +1,6 @@
+[submodule "pytorch-dense-correspondence"]
+	path = pytorch-dense-correspondence
+	url = git@github.com:ethanweber/pytorch-dense-correspondence.git
+[submodule "models"]
+	path = models
+	url = git@github.com:ethanweber/models.git
