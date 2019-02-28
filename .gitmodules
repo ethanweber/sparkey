@@ -1,3 +1,6 @@
 [submodule "models"]
 	path = models
 	url = git@github.com:ethanweber/models.git
+[submodule "pytorch-dense-correspondence-private"]
+	path = pytorch-dense-correspondence-private
+	url = git@github.com:RobotLocomotion/pytorch-dense-correspondence-private.git
