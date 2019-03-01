@@ -33,17 +33,17 @@ class OccNetDataloader(object):
     def __init__(self, config_filename='caterpillar_only.yaml'):
 
 
-        # with HiddenPrints():
+        with HiddenPrints():
         
-        self.config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'dataset', 'composite', config_filename)
+            self.config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'dataset', 'composite', config_filename)
 
-        self.train_config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'training', 'training.yaml')
+            self.train_config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'training', 'training.yaml')
 
-        self.config = utils.getDictFromYamlFilename(self.config_filename)
-        self.train_config = utils.getDictFromYamlFilename(self.train_config_filename)
+            self.config = utils.getDictFromYamlFilename(self.config_filename)
+            self.train_config = utils.getDictFromYamlFilename(self.train_config_filename)
 
-        self.dataset = SpartanDataset(config=self.config)
-        self.dataset.set_parameters_from_training_config(self.train_config)
+            self.dataset = SpartanDataset(config=self.config)
+            self.dataset.set_parameters_from_training_config(self.train_config)
 
     def get_random_scene_from_object_id(self, object_id=None):
         # set to first object_id if not specified
@@ -84,13 +84,3 @@ class OccNetDataloader(object):
         b_image_data = [rgb_b, depth_b, mask_b, pose_b]
 
         return K, a_image_data, b_image_data
-
-    
-
-    
-
-    
-
-
-occnet = OccNetDataloader()
-print(occnet.get_random_data_pair())
