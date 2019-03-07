@@ -58,8 +58,8 @@ class OccNetDataloader(object):
     def get_frame_idx_pair_from_scene_name(self, scene_name):
         """Returns the indices of two frames in the scene."""
         frames = list(self.dataset.get_pose_data(scene_name).keys())
-        frame_idx_a = frames[random.randint(0, len(frames))]
-        frame_idx_b = frames[random.randint(0, len(frames))]
+        frame_idx_a = frames[random.randint(0, len(frames)-1)]
+        frame_idx_b = frames[random.randint(0, len(frames)-1)]
         print("frame_idx_a: {}, frame_idx_b: {}".format(frame_idx_a, frame_idx_b))
         return (frame_idx_a, frame_idx_b)
 

@@ -2,6 +2,7 @@ import numpy as np
 
 
 # get the coordinates and distance from the projection
+# source_u, source_v in pixel coordinates 640 x 480 image size
 def get_u_v_d_point_after_projection(source_u, source_v, source_pose, source_depth, target_pose, K):
     """
     This returns the u, v, target_depth for the a coordinate from one frame to other.
@@ -35,6 +36,7 @@ def get_u_v_d_point_after_projection(source_u, source_v, source_pose, source_dep
     return u, v, depth
 
 # code that will get the coordinates in a mask
+# this can then be used to take only coordinates contained within the mask
 def get_coords_contained_in_mask(mask):
     coords = []
     np_mask = np.array(mask)
@@ -46,3 +48,16 @@ def get_coords_contained_in_mask(mask):
                 coords.append([u,v])
             
     return coords
+
+# TODO(ethan): only use this code if needed
+# import the Transformer used in the model code
+# from models.research.keypointnet.main import Transformer
+# class OccnetTransformer(Transformer):
+#     """
+#     Here we inherrit from Transformer in the KeypointnNet code to do projection tests with visualizer.py.
+#     """
+
+#     def __init__(self, *args, **kwargs):
+#         # pass all the arguments to the parrent class
+#         super(OccnetTransformer, self).__init__(*args, **kwargs)
+

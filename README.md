@@ -50,6 +50,7 @@ conda install matplotlib
 conda install -c conda-forge opencv
 conda install -c open3d-admin open3d
 conda install -c anaconda tensorflow-gpu
+conda install -c anaconda scipy
 ```
 todo: add tensorflow
 
@@ -63,11 +64,19 @@ python -m ipykernel install --user --name occnet --display-name "occnet"
 cd /path/to/repo
 jupyter notebook
 
+# to access remotely
+jupyter notebook --ip 0.0.0.0 --port 8888
+
 # use the correct kernel (in web GUI)
 Kernel -> Change kernel -> occnet
 ```
 
-
 # Notes
 - poser didn't clone correctly
 - figure out how to get the submodules working on my own fork
+
+```
+# make opencv in python work with window display support
+pip install opencv-python 
+pip install opencv-contrib-python
+```
