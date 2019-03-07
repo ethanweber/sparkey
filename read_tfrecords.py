@@ -7,7 +7,7 @@ import os
 
 
 # make a data loader that can be used by the visualizer
-class OccnetDataLoader(object):
+class OccnetTfrecordLoader(object):
     """
     Simple dataloader class to be used with reading tfrecords.
     """
@@ -42,7 +42,7 @@ class OccnetDataLoader(object):
 if __name__ == "__main__":
     # TODO(ethan): get data from argparse
 
-    dataloader = OccnetDataLoader()
+    dataloader = OccnetTfrecordLoader()
 
     sess = tf.InteractiveSession()
     # Many tf.train functions use tf.train.QueueRunner,

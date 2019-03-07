@@ -9,7 +9,7 @@ import numpy as np
 
 # import the Transformer used in the model code
 from models.research.keypointnet.main import Transformer
-from read_tfrecords import OccnetDataLoader
+from read_tfrecords import OccnetTfrecordLoader
 
 
 class Visualizer(object):
@@ -92,7 +92,7 @@ class Visualizer(object):
 if __name__ == "__main__":
     # TODO(ethan): get data from argparse
 
-    dataloader = OccnetDataLoader("datasets/00001/")
+    dataloader = OccnetTfrecordLoader("datasets/00001/")
 
     # create the transformer class
     transformer = Transformer(128, 128, "datasets/00001/")

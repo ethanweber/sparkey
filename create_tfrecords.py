@@ -12,7 +12,7 @@ import cv2
 import matplotlib.pyplot as plt
 import random
 
-from data_loader import OccNetDataloader
+from data_loader import OccnetDataLoader
 import utils as occnet_utils
 
 # TODO(ethan): use these flags
@@ -20,7 +20,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_integer("num_image_pairs", 10, "The number of image pairs to use.")
 tf.app.flags.DEFINE_string("output", "", "Output tfrecord.")
 
-dataloader = OccNetDataloader()
+dataloader = OccnetDataLoader()
 
 # code for formatting into tfrecord format
 

@@ -26,7 +26,7 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-class OccNetDataloader(object):
+class OccnetDataLoader(object):
     """
     Data loader class that takes from the pytorch-dense-correspondence dataset.
     """
