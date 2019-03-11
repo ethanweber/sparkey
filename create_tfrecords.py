@@ -37,12 +37,6 @@ def generate():
             encoded0 = tf.image.encode_png(im0)
             encoded1 = tf.image.encode_png(im1)
 
-            # placeholders for the masks
-            im0_mask = tf.placeholder(dtype=tf.uint8)
-            im1_mask = tf.placeholder(dtype=tf.uint8)
-            encoded0_mask = tf.image.encode_png(im0_mask)
-            encoded1_mask = tf.image.encode_png(im1_mask)
-
             with tf.Session() as sess:
 
                 for i in range(FLAGS.num_image_pairs):
@@ -61,20 +55,32 @@ def generate():
                     mask_a = mask_a.resize((128, 128))
                     mask_b = mask_b.resize((128, 128))
 
+                    # resize depth images to 128 x 128
+                    depth_a = depth_a.resize((128, 128))
+                    depth_b = depth_b.resize((128, 128))
+
                     # convert the images to numpy arrays
                     image0 = np.array(rgb_a)
                     image1 = np.array(rgb_b)
 
                     # convert the masks to numpy arrays
-                    mask0 = np.zeros_like(image0)
-                    mask0[:,:,0] = mask0[:,:,1] = mask0[:,:,2] = np.array(mask_a)
-                    mask1 = np.zeros_like(image1)
-                    mask1[:,:,0] = mask1[:,:,1] = mask1[:,:,2] = np.array(mask_b)
+                    mask0 = np.array(mask_a)
+                    mask1 = np.array(mask_b)
+
+                    # for masking with the images
+                    temp_mask0 = np.zeros_like(image0)
+                    temp_mask0[:,:,0] = temp_mask0[:,:,1] = temp_mask0[:,:,2] = mask0
+                    temp_mask1 = np.zeros_like(image1)
+                    temp_mask1[:,:,0] = temp_mask1[:,:,1] = temp_mask1[:,:,2] = mask1
+
+                    # convert the depth maps to numpy arrays
+                    depth0 = np.array(depth_a)
+                    depth1 = np.array(depth_b)
 
                     # TODO(ethan): only operate on segmented masks right now
                     # maybe change this later
-                    image0 = image0 * mask0
-                    image1 = image1 * mask1
+                    image0 = image0 * temp_mask0
+                    image1 = image1 * temp_mask1
 
                     # camera poses in world frame
                     mat0 = np.array(pose_a)
@@ -84,19 +90,23 @@ def generate():
                     mat0 = mat0.flatten()
                     mat1 = mat1.flatten()
 
-                    # feed the placeholders for the images and masks
+                    # feed the placeholders for the images, masks and depths
                     st0, st1 = sess.run([encoded0, encoded1],
                         feed_dict={im0: image0, im1: image1})
-                    st0_mask, st1_mask = sess.run([encoded0_mask, encoded1_mask],
-                        feed_dict={im0_mask: mask0, im1_mask: mask1})
 
                     example = tf.train.Example(
                         features=tf.train.Features(
                             feature={
                                 'img0': bytes_feature(st0),
-                                'img0_mask': bytes_feature(st0_mask),
+                                'img0_mask': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=mask0.flatten())),
+                                'img0_depth': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=depth0.flatten())),
                                 'img1': bytes_feature(st1),
-                                'img1_mask': bytes_feature(st1_mask),
+                                'img1_mask': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=mask1.flatten())),
+                                'img1_depth': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=depth1.flatten())),
                                 'mv0': tf.train.Feature(
                                     float_list=tf.train.FloatList(value=mat0)),
                                 'mvi0': tf.train.Feature(

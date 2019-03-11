@@ -14,6 +14,20 @@ class OccnetTfrecordLoader(object):
 
     feature_set = {
         "img0": tf.FixedLenFeature([], tf.string),
+        "img0_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+        "img0_depth": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+        "img1": tf.FixedLenFeature([], tf.string),
+        "img1_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+        "img1_depth": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+        "mv0": tf.FixedLenFeature([16], tf.float32),
+        "mvi0": tf.FixedLenFeature([16], tf.float32),
+        "mv1": tf.FixedLenFeature([16], tf.float32),
+        "mvi1": tf.FixedLenFeature([16], tf.float32),
+    }
+
+    # if using the original data
+    keypointnet_features = {
+        "img0": tf.FixedLenFeature([], tf.string),
         "img1": tf.FixedLenFeature([], tf.string),
         "mv0": tf.FixedLenFeature([16], tf.float32),
         "mvi0": tf.FixedLenFeature([16], tf.float32),
@@ -21,21 +35,28 @@ class OccnetTfrecordLoader(object):
         "mvi1": tf.FixedLenFeature([16], tf.float32),
     }
 
-    def __init__(self, dataset_dir='datasets/00001/'):
+    def __init__(self, dataset_dir='datasets/00004/'):
         self.dataset_dir = dataset_dir
 
         # get the tfrecord filenames
         tfrecord_path = os.path.join(dataset_dir, '*.tfrecord')
         tfrecord_filenames = glob.glob(tfrecord_path)
 
-        self.reader = tf.TFRecordReader()
+        def parser(serialized_example):
+            fs = tf.parse_single_example(
+                serialized_example,
+                features=self.feature_set
+                # features=self.keypointnet_features
+            )
+            return fs
 
-        filename_queue = tf.train.string_input_producer(tfrecord_filenames)
-        _, self.serialized_example = self.reader.read(filename_queue)
+        batch_size = 1
+        dataset = tf.data.TFRecordDataset(tfrecord_filenames)
+        dataset = dataset.map(parser, num_parallel_calls=4)
+        dataset = dataset.shuffle(400).repeat().batch(batch_size)
+        dataset = dataset.prefetch(buffer_size=256)
 
-    def get_features(self):
-        features = tf.parse_single_example(self.serialized_example, features=self.feature_set)
-        return features
+        self.iterator = dataset.make_one_shot_iterator().get_next()
 
 
 # TODO(ethan): make this run in a more elagant manner with argparse values
@@ -44,49 +65,62 @@ if __name__ == "__main__":
 
     dataloader = OccnetTfrecordLoader()
 
-    sess = tf.InteractiveSession()
-    # Many tf.train functions use tf.train.QueueRunner,
-    # so we need to start it before we read
-    # https://medium.com/mostly-ai/tensorflow-records-what-they-are-and-how-to-use-them-c46bc4bbb564
-    tf.train.start_queue_runners(sess)
+    sess = tf.Session()
+    
+    features = dataloader.iterator
 
+    img0 = tf.image.decode_png(features["img0"][0], 3)
+    img0_mask = features["img0_mask"][0]
+    img0_depth = features["img0_depth"][0]
+    img1 = tf.image.decode_png(features["img1"][0], 3)
+    img1_mask = features["img1_mask"][0]
+    img1_depth = features["img1_depth"][0]
 
-    # example of getting some data and using it
-    # ----------------------------
-    features = dataloader.get_features()
+    img0, img0_mask, img0_depth, img1, img1_mask, img1_depth = sess.run([img0, img0_mask, img0_depth, img1, img1_mask, img1_depth])
 
-    img0 = tf.image.decode_png(features["img0"], 3).eval()
-    img1 = tf.image.decode_png(features["img1"], 3).eval()
+    # reshape the stuff
+    img0_mask = img0_mask.reshape((128, 128))
+    img0_depth = img0_depth.reshape((128, 128))
+    img1_mask = img1_mask.reshape((128, 128))
+    img1_depth = img1_depth.reshape((128, 128))
 
-    mv0 = features["mv0"].eval()
-    mvi0 = features["mvi0"].eval()
-    mv1 = features["mv1"].eval()
-    mvi1 = features["mvi1"].eval()
+    # get into same shape
+    mask_copy = np.zeros_like(img0)
+    mask_copy[:,:,0] = mask_copy[:,:,1] = mask_copy[:,:,2] = img0_mask
+    img0_mask = mask_copy * 255
 
-    print("mv0:\n\n{}\n\n".format(mv0))
-    print("mvi0:\n\n{}\n\n".format(mvi0))
-    print("mv1:\n\n{}\n\n".format(mv1))
-    print("mvi1:\n\n{}\n\n".format(mvi1))
+    mask_copy = np.zeros_like(img1)
+    mask_copy[:,:,0] = mask_copy[:,:,1] = mask_copy[:,:,2] = img1_mask
+    img1_mask = mask_copy * 255
 
-    a = {}
-    a["img0"] = img0
-    a["img1"] = img1
+    # do the same for the depths
+    depth_copy = np.zeros_like(img0)
+    depth_copy[:,:,0] = depth_copy[:,:,1] = depth_copy[:,:,2] = img0_depth
+    img0_depth = depth_copy
 
-    a["mv0"] = mv0
-    a["mvi0"] = mvi0
-    a["mv1"] = mv1
-    a["mvi1"] = mvi1
+    depth_copy = np.zeros_like(img1)
+    depth_copy[:,:,0] = depth_copy[:,:,1] = depth_copy[:,:,2] = img1_depth
+    img1_depth = depth_copy
 
+    # --------------------
+    # a = {}
+    # a["img0"] = img0
+    # a["img1"] = img1
+    # a["mv0"] = mv0
+    # a["mvi0"] = mvi0
+    # a["mv1"] = mv1
+    # a["mvi1"] = mvi1
     # optionally save to a pickle file for loading in notebooks
     # with open('pickled_data.pickle', 'wb') as handle:
     #     pickle.dump(a, handle)
+    # --------------------
 
-    # stack the images next to each other
-    image = np.hstack([img0, img1])
+    # stack images together
+    left = np.vstack([img0, img0_mask, img0_depth])
+    right = np.vstack([img1, img1_mask, img1_depth])
+    image = np.hstack([left, right])
 
-    # save the image to visualize
-    filename = "images/example_image_{}.png".format(0)
-    cv2.imwrite(filename, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+    cv2.imwrite("images/read_tfrecords.png", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
 
 
