@@ -56,8 +56,8 @@ def generate():
                     mask_b = mask_b.resize((128, 128))
 
                     # resize depth images to 128 x 128
-                    depth_a = depth_a.resize((128, 128))
-                    depth_b = depth_b.resize((128, 128))
+                    # depth_a = depth_a.resize((128, 128))
+                    # depth_b = depth_b.resize((128, 128))
 
                     # convert the images to numpy arrays
                     image0 = np.array(rgb_a)
@@ -82,13 +82,23 @@ def generate():
                     image0 = image0 * temp_mask0
                     image1 = image1 * temp_mask1
 
+                    # write these to file
+                    cv2.imwrite("/home/ethanweber/Documents/occnet/caterpillars/{}.png".format(i), image0[...,::-1])
+
                     # camera poses in world frame
-                    mat0 = np.array(pose_a)
-                    mat1 = np.array(pose_b)
-                    mati0 = np.linalg.inv(mat0).flatten()
-                    mati1 = np.linalg.inv(mat1).flatten()
-                    mat0 = mat0.flatten()
-                    mat1 = mat1.flatten()
+                    # mat0 = np.array(pose_a)
+                    # mat1 = np.array(pose_b)
+                    # mati0 = np.linalg.inv(mat0).flatten()
+                    # mati1 = np.linalg.inv(mat1).flatten()
+                    # mat0 = mat0.flatten()
+                    # mat1 = mat1.flatten()
+                    mati0 = np.array(pose_a)
+                    mati1 = np.array(pose_b)
+                    mat0 = np.linalg.inv(mati0).flatten()
+                    mat1 = np.linalg.inv(mati1).flatten()
+                    mati0 = mati0.flatten()
+                    mati1 = mati1.flatten()
+                    
 
                     # feed the placeholders for the images, masks and depths
                     st0, st1 = sess.run([encoded0, encoded1],
