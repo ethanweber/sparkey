@@ -11,10 +11,9 @@ data_loader_path = os.path.dirname(os.path.abspath(__file__))
 don_dataset_path = os.path.join(data_loader_path, 'pytorch-dense-correspondence-private/dense_correspondence/dataset')
 sys.path.append(don_dataset_path)
 
-import dense_correspondence_manipulation.utils.utils as utils
-utils.add_dense_correspondence_to_python_path()
 from dense_correspondence.dataset.spartan_dataset_masked import SpartanDataset
 from dense_correspondence.dataset.dense_correspondence_dataset_masked import ImageType
+import dense_correspondence_manipulation.utils.utils as utils
 
 # there are some unneccary prints
 class HiddenPrints:
@@ -32,11 +31,9 @@ class OccnetDataLoader(object):
     """
     def __init__(self, config_filename='caterpillar_only.yaml'):
 
-
         with HiddenPrints():
         
             self.config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'dataset', 'composite', config_filename)
-
             self.train_config_filename = os.path.join(utils.getDenseCorrespondenceSourceDir(), 'config', 'dense_correspondence', 'training', 'training.yaml')
 
             self.config = utils.getDictFromYamlFilename(self.config_filename)

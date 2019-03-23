@@ -1,12 +1,4 @@
-"""
-This file is used to verify that everything works. It runs some experiments should be correct before continuing.
-
-
-Current tests:
-
-- project test: creates projection_test.png, which should show point correspondences (red dot position in image).
-
-"""
+# dense object nets projection santity check executable
 
 # TODO(ethan): figure out how to modify K to work with normalized image coordinates in range [-1, 1] and a scaled version of z
 

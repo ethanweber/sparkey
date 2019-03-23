@@ -1,48 +1,55 @@
 # occnet
 
-# Setup
+Automatic Keypoint Discovery with Occlusions
+
+# Structure
+
+- [data/](data)
+
+    This folder contains code for using the `pytorch-dense-correspondence-private` repo for data loading. This code is used to format data into the correct form for occnet. pytorch-dense-correspondence-private is used because it has real-world data that matches the format we need for occnet.
+
+- [datasets](datasets)
+
+    This folder is used to hold the datasets that we make. Folders within the datasets folder will be numbered `000`, `001`, `002`, etc.
+
+- [experiments](experiments)
+
+    This folder will contain the experiments and corresponding TensorBoard sessions. The folders will be named according to the time of experiment, with a timestamp of the form `YYYY-MM-DD_HH:MM:SS`.
+
+- [predictions](predictions)
+
+    This folder will hold the results of running an experiment on a selected dataset. The experiment and dataset result will be in a folder name with name `dataset#experiment`. For example, `000#2019-03-23_18:27:59`.
+
+- [notebooks](notebooks)
+
+    This folder contains the .ipynb notebooks for experimentation, santity checks, or anything that is more convenient in a notebook than a standalone script.
+
+- [maskrcnn](maskrcnn)
+
+    This will hold the code needed to synthetically create COCO formatted datasets for training with Mask R-CNN. This allows us to create the binary instance masks at runtime.
+
+# Environment Setup
 
 ```
+# setup the environment
 cd occnet
 source setup_env.sh
-```
 
-# Download Data
-
-From the don tutorial, download the data.
-
-```
-cd pytorch-dense-correspondence-private
-python config/download\_pdc\_data.py config/dense\_correspondence/dataset/composite/caterpillar\_only.yaml
-```
-
-move it do a data folder!
-
-# Files
-
-- data\_loader.py
-
-This file is used to format the pytorch-dense-correspondence data into the correct format needed by occnet.
-
-
-# Submodules
-
-- models
-
-I'm using a fork of tensorflow/models where I can modify the keypointnet work.
-
-- pytorch-dense-correspondence-private
-
-I'm also using a fork of pytorch-dense-correspondence. I'm using this repo for it's real-world data.
-
-
-```
-cd pytorch-dense-correspondence-private
+# set up submodules
+cd pytorch-dense-correspondence
 git submodule update --init --recursive
-```
 
-environment setup (conda environment name = occnet)
-```
+# use dense object nets to download data
+cd pytorch-dense-correspondence-private
+python config/download_pdc_data.py config/dense_correspondence/dataset/composite/caterpillar_only.yaml
+# move the pdc folder to pytorch-dense-correspondence/data
+mkdir data
+mv pdc/ data/
+
+# conda environment setup
+conda create -n occnet python=3.7.2
+conda activate occnet
+# install dependencies
 conda install pytorch torchvision -c pytorch
 conda install ipykernel
 conda install pyyaml
@@ -51,12 +58,7 @@ conda install -c conda-forge opencv
 conda install -c open3d-admin open3d
 conda install -c anaconda tensorflow-gpu
 conda install -c anaconda scipy
-```
-todo: add tensorflow
 
-# use conda environment in jupyter notebook
-
-```
 # install kernel for jupyter notebook
 python -m ipykernel install --user --name occnet --display-name "occnet"
 
@@ -69,13 +71,7 @@ jupyter notebook --ip 0.0.0.0 --port 8888
 
 # use the correct kernel (in web GUI)
 Kernel -> Change kernel -> occnet
-```
 
-# Notes
-- poser didn't clone correctly
-- figure out how to get the submodules working on my own fork
-
-```
 # make opencv in python work with window display support
 pip install opencv-python 
 pip install opencv-contrib-python
