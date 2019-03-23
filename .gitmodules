@@ -1,0 +1,3 @@
+[submodule "pytorch-dense-correspondence-private"]
+	path = pytorch-dense-correspondence-private
+	url = https://github.com/ethanweber/pytorch-dense-correspondence-private.git
