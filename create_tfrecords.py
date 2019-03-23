@@ -82,8 +82,12 @@ def generate():
                     image0 = image0 * temp_mask0
                     image1 = image1 * temp_mask1
 
+                    # expand the images to have alpha channels
+                    image0 = np.concatenate((image0, temp_mask0[:,:,:1]), axis=2)
+                    image1 = np.concatenate((image1, temp_mask1[:,:,:1]), axis=2)
+
                     # write these to file
-                    cv2.imwrite("/home/ethanweber/Documents/occnet/caterpillars/{}.png".format(i), image0[...,::-1])
+                    # cv2.imwrite("/home/ethanweber/Documents/occnet/caterpillars/{}.png".format(i), image0[...,::-1])
 
                     # camera poses in world frame
                     # mat0 = np.array(pose_a)
