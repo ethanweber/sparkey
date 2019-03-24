@@ -20,6 +20,12 @@ this network can predict a set of 3D keypoints that are consistent across
 viewing angles of the same object and across object instances. These keypoints
 and their detectors are discovered and learned automatically without
 keypoint location supervision.
+
+# ethan
+python main.py --main.py --model_dir=MODEL_DIR --dset=DSET
+example:
+(excluding model_dir creates a timestamped model_dir)
+python main.py --main.py --dset=DSET
 """
 
 from __future__ import absolute_import
@@ -837,7 +843,7 @@ def main(argv):
   if FLAGS.predict:
     predict(FLAGS.input, hparams)
   else:
-    # ethan: if no FLAGS.model_dir, then create a new one
+    # ethan: if no FLAGS.model_dir, then create a new one with a timestamp
     if FLAGS.model_dir is None:
       # get the current timestamp
       timestamp = datetime.datetime.now().strftime("%y-%m-%d_%I:%M:%S")
