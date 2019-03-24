@@ -8,7 +8,7 @@ import random
 
 # python path needed for dense object nets
 data_loader_path = os.path.dirname(os.path.abspath(__file__))
-don_dataset_path = os.path.join(data_loader_path, 'pytorch-dense-correspondence-private/dense_correspondence/dataset')
+don_dataset_path = os.path.join(data_loader_path, '..', 'pytorch-dense-correspondence-private/dense_correspondence/dataset')
 sys.path.append(don_dataset_path)
 
 from dense_correspondence.dataset.spartan_dataset_masked import SpartanDataset
@@ -25,7 +25,7 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-class OccnetDataLoader(object):
+class DonDataLoader(object):
     """
     Data loader class that takes from the pytorch-dense-correspondence dataset.
     """

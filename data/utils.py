@@ -1,3 +1,5 @@
+# some helper functions that are either being used or might be in the future
+
 import numpy as np
 
 

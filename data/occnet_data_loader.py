@@ -1,3 +1,9 @@
+""" occnet_data_loader
+
+This is used to load data for testing. It's not actually used by the occnet network right now.
+
+"""
+
 import tensorflow as tf
 import cv2
 import numpy as np
@@ -35,7 +41,14 @@ class OccnetTfrecordLoader(object):
         "mvi1": tf.FixedLenFeature([16], tf.float32),
     }
 
-    def __init__(self, dataset_dir='datasets/00004/', occnet_data=True):
+    def __init__(self, dataset_dir="", occnet_data=True):
+        """
+            dataset_dir - full path to dataset
+            occnet_data - True if using an occnet dataset, False if using a standard keypointnet dataset
+        """
+
+        if dataset_dir == "":
+            raise ValueError("You must specify a dataset directory (dataset_dir)!")
 
         # get the tfrecord filenames
         tfrecord_path = os.path.join(dataset_dir, '*.tfrecord')
@@ -66,8 +79,8 @@ class OccnetTfrecordLoader(object):
                 fs["lr1"] = tf.convert_to_tensor([fs["mv1"][0]])
             else:
                 fs = tf.parse_single_example(
-                serialized_example,
-                features=self.keypointnet_feature_set
+                    serialized_example,
+                    features=self.keypointnet_feature_set
                 )
                 fs["img0"] = tf.div(tf.to_float(tf.image.decode_png(fs["img0"], 4)), 255)
                 fs["img1"] = tf.div(tf.to_float(tf.image.decode_png(fs["img1"], 4)), 255)
@@ -83,6 +96,7 @@ class OccnetTfrecordLoader(object):
                 fs["lr1"] = tf.convert_to_tensor([fs["mv1"][0]])
             return fs
 
+        # ethan: this is set for testing purposes. it's not used by keypointnet
         batch_size = 1
         dataset = tf.data.TFRecordDataset(tfrecord_filenames)
         dataset = dataset.map(parser, num_parallel_calls=4)
@@ -102,10 +116,10 @@ class OccnetTfrecordLoader(object):
 
         features = self.get_features()
 
-        img0 = tf.image.decode_png(features["img0"][0], 3)
+        img0 = features["img0"][0,:,:,:3]
         img0_mask = features["img0_mask"][0]
         img0_depth = features["img0_depth"][0]
-        img1 = tf.image.decode_png(features["img1"][0], 3)
+        img1 = features["img1"][0,:,:,:3]
         img1_mask = features["img1_mask"][0]
         img1_depth = features["img1_depth"][0]
         mv0 = features["mv0"]
@@ -141,73 +155,6 @@ class OccnetTfrecordLoader(object):
         img1_depth = depth_copy
 
         return [img0, img0_mask, img0_depth, img1, img1_mask, img1_depth, mv0, mvi0, mv1, mvi1]
-
-
-
-
-# TODO(ethan): make this run in a more elagant manner with argparse values
-if __name__ == "__main__":
-    # TODO(ethan): get data from argparse
-
-    occnet_data = True
-    dataloader = OccnetTfrecordLoader("datasets/00005/", occnet_data=occnet_data)
-
-    sess = tf.Session()
-    
-    features = dataloader.get_features()
-
-    # img0, img0_mask, img0_depth, img1, img1_mask, img1_depth, mv0, mvi0, mv1, mvi1 = dataloader.get_single_example_from_batch(sess)
-
-    # img0, img0_mask, img0_depth, img1, img1_mask, img1_depth = sess.run(
-    #     [
-    #         features["img0"][0, :, :, :3],
-    #         features["img0_mask"],
-    #         features["img0_depth"],
-    #         features["img1"][0, :, :, :3],
-    #         features["img1_mask"],
-    #         features["img1_depth"]
-    #     ]
-    # )
-
-    # print(img0.shape)
-
-    # --------------------
-    # a = {}
-    # a["img0"] = img0
-    # a["img1"] = img1
-    # a["mv0"] = mv0
-    # a["mvi0"] = mvi0
-    # a["mv1"] = mv1
-    # a["mvi1"] = mvi1
-    # optionally save to a pickle file for loading in notebooks
-    # with open('pickled_data.pickle', 'wb') as handle:
-    #     pickle.dump(a, handle)
-    # --------------------
-
-    # stack images together
-    # left = np.vstack([img0, img0_mask, img0_depth])
-    # right = np.vstack([img1, img1_mask, img1_depth])
-    # image = np.hstack([left, right])
-
-    # cv2.imwrite("images/read_tfrecords.png", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-
-    for i in range(50):
-        # left = np.vstack([img0, img0_mask, img0_depth])
-        # right = np.vstack([img1, img1_mask, img1_depth])
-        # image = np.hstack([left, right])
-
-        img0, img0_mask, img0_depth, img1, img1_mask, img1_depth = sess.run(
-            [
-                features["img0_png"][0, :, :, :3],
-                features["img0_mask"],
-                features["img0_depth"],
-                features["img1_png"][0, :, :, :3],
-                features["img1_mask"],
-                features["img1_depth"]
-            ]
-        )
-
-        cv2.imwrite("/home/ethanweber/Documents/occnet/caterpillars/00005/{}.png".format(i), img0[...,::-1])
 
 
 

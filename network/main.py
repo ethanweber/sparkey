@@ -34,7 +34,7 @@ from scipy import misc
 import sys
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-import utils
+import network.utils
 
 FLAGS = tf.app.flags.FLAGS
 

@@ -1,15 +1,26 @@
-"""
-This executable is used to test the projection code used in our model.
+""" executable for visualizing projections based on where you click
+
+this is primarly for debuggin and verify projections work properly.
+we are assuming the use occnet data in this case as well.
+
+# ethan: add support for keypointnet data as well
+
+example:
+python run_visualizer.py --dataset_name 999
 """
 
 import tensorflow as tf
 import argparse
 import cv2
 import numpy as np
+import os
+import argparse
 
-# import the Transformer used in the model code
-from models.research.keypointnet.main import Transformer
-from read_tfrecords import OccnetTfrecordLoader
+# ethan: make this import better
+import sys
+sys.path.append("../")
+from network.main import Transformer
+from data.occnet_data_loader import OccnetTfrecordLoader
 
 
 class Visualizer(object):
@@ -66,7 +77,7 @@ class Visualizer(object):
         if event == cv2.EVENT_LBUTTONDOWN:
             
             point = (x, y)
-            # print("clicked at: {}".format(point))
+            print("clicked at: {}".format(point))
 
             x = int(x * 640.0/128.0)
             y = int(y * 480.0/128.0)
@@ -81,85 +92,24 @@ class Visualizer(object):
             uvz = self.get_batch_tensor_from_keypoint(keypoint_list)
             # uvz is what our network should be predicting
 
-            homogenous_world_coords = self.transformer.unproject(uvz)
-
-
-
-            # ----------------------------------
-
-            # trans = tf.matmul(mvi1[0], mv0[0])
+            # same function used in keypointnet
             def func1(x):
-                # return tf.transpose(tf.reshape(x, [-1, 4, 4]), [0, 2, 1])
-                return tf.reshape(x, [-1, 4, 4])
+                return tf.transpose(tf.reshape(x, [-1, 4, 4]), [0, 2, 1])
 
             mv0 = func1(tf.convert_to_tensor(self.mv0, dtype=tf.float32))
             mv1 = func1(tf.convert_to_tensor(self.mv1, dtype=tf.float32))
             mvi0 = func1(tf.convert_to_tensor(self.mvi0, dtype=tf.float32))
             mvi1 = func1(tf.convert_to_tensor(self.mvi1, dtype=tf.float32))
-            trans = tf.matmul(mvi1, mv0)
-
-            new_homogenous_world_coords = tf.matmul(trans, tf.transpose(homogenous_world_coords, [0, 2, 1]))
-            new_homogenous_world_coords = tf.transpose(new_homogenous_world_coords, [0, 2, 1])
-
-            uvz_proj = self.transformer.project(new_homogenous_world_coords)
 
 
-            # temp_world_coords = tf.matmul(homogenous_world_coords, tf.transpose(trans))
-            # temp_world_coords = tf.matmul(temp_world_coords, mv1)
-            # uvz_proj = self.transformer.project(temp_world_coords)
-            # uvz_proj = self.transformer.project(tf.matmul(temp_world_coords, mv1))
+            homogenous_world_coords = self.transformer.unproject(uvz)
+            world_coords = tf.matmul(homogenous_world_coords, mvi0)
+            uvz_proj = self.transformer.project(tf.matmul(world_coords, mv1))
 
             [newx, newy] = self.sess.run(uvz_proj[0, 0, :2])
             newx = int((newx+1.0) * 64.0)
-            newy = int((newy+1.0) * 64.0)
-
-            # print("\nuvz_proj\n")
-            # print(self.sess.run(uvz_proj))
-            # print("\nuvz_proj\n")
-
-            # trans = tf.matmul(mvi1, mv0)
-
-            def batch_matmul(a, b):
-                return tf.reshape(
-                    tf.matmul(tf.reshape(a, [-1, a.shape[2].value]), b),
-                    [-1, a.shape[1].value, a.shape[2].value])
-
-            # uvz = tf.constant([[[x*z, y*z, 1*z]]])
-            # print("uvz")
-            # print(uvz)
-            # print(self.sess.run(uvz))
-            # world_coords = batch_matmul(uvz, tf.transpose(self.transformer.pinv_t))
-            # print("world_coords")
-            # print(world_coords)
-            # print(self.sess.run(world_coords))
-            # homogenous_world_coords = tf.concat([world_coords, tf.ones_like(uvz[:, :, 2:])], axis=2)
-            # print("homogenous_world_coords")
-            # print(homogenous_world_coords)
-            # print(self.sess.run(homogenous_world_coords))
-            # new_homogenous_world_coords = tf.matmul(trans, tf.transpose(homogenous_world_coords, [0, 2, 1]))
-            # new_homogenous_world_coords = tf.transpose(new_homogenous_world_coords, [0, 2, 1])
-            # print("new_homogenous_world_coords")
-            # print(new_homogenous_world_coords)
-            # print(self.sess.run(new_homogenous_world_coords))
-            new_world_coords = new_homogenous_world_coords / new_homogenous_world_coords[:, :, 3]
-            new_world_coords = new_world_coords[:, :, :3]
-            print("new_world_coords")
-            print(new_world_coords)
-            print(self.sess.run(new_world_coords))
-            new_uvz = batch_matmul(new_world_coords, tf.transpose(self.transformer.p))
-            print("new_uvz")
-            print(new_uvz)
-            print(self.sess.run(new_uvz))
-            new_z = new_uvz[:, :, 2]
-            normalized_new_uvz = new_uvz / new_z
-            print("normalized_new_uvz")
-            print(normalized_new_uvz)
-            print(self.sess.run(normalized_new_uvz))
-
-            # [newx, newy] = self.sess.run(normalized_new_uvz[0, 0, :2])
-            # newx = int(newx * 128.0 / 640.0)
-            # newy = int(newy * 128.0 / 480.0)
-
+            # keypointnet assumes flipped, so we reverse that here
+            newy = 127 - int((newy+1.0) * 64.0)
 
             # draw the first point that is clicked and the other one
             cv2.circle(self.current_image, point, 5, (0, 255, 0), -1)
@@ -201,23 +151,18 @@ class Visualizer(object):
                 break
 
 
-# TODO(ethan): get argument parsing code to work again
-# # construct the argument parser and parse the arguments
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-i", "--image", required=True, help="Path to the image")
-# args = vars(ap.parse_args())
-
-
 # TODO(ethan): make this run in a more elagant manner with argparse values
 if __name__ == "__main__":
-    # TODO(ethan): get data from argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset_name', type=str, default="999", help='The dataset name located in the datasets folder.')
+    args = parser.parse_args()
 
-    occnet_data = True
+    dataset_name = args.dataset_name
+    dataset_dir = os.path.join("../datasets", dataset_name) + "/"
 
-    dataloader = OccnetTfrecordLoader("datasets/00004/", occnet_data=occnet_data)
-
-    # create the transformer class
-    transformer = Transformer(128, 128, "datasets/00004/", occnet=occnet_data)
+    # create the dataloader and transformer classes
+    dataloader = OccnetTfrecordLoader(dataset_dir, occnet_data=True)
+    transformer = Transformer(128, 128, dataset_dir, occnet=True)
     
     # create the visualizer and start it
     visualizer = Visualizer(transformer, dataloader)

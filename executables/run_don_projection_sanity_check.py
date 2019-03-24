@@ -1,21 +1,31 @@
-# dense object nets projection santity check executable
+""" executable for dense object nets projection santity check executable
 
-# TODO(ethan): figure out how to modify K to work with normalized image coordinates in range [-1, 1] and a scaled version of z
+This is just a sanity check to show out the data from DON can be used to project from one image into another image.
+
+creates `run_don_projection_sanity_check_output.png`
+"""
 
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import random
 
-from data_loader import OccNetDataloader
-import utils as occnet_utils
 
-dataloader = OccNetDataloader()
+# ethan: make this import better
+import sys
+sys.path.append("../")
+from data.don_data_loader import DonDataLoader
+import data.utils as occnet_utils
+
+dataloader = DonDataLoader()
 
 # get a data pair and unpack it
 K, a_image_data, b_image_data = dataloader.get_random_data_pair()
 rgb_a, depth_a, mask_a, pose_a = a_image_data
 rgb_b, depth_b, mask_b, pose_b = b_image_data
+
+# print the intrinsic matrix used
+print("Intrinsic Matrix: \n{}".format(K))
 
 # specify the transforms
 T_w_a = pose_a
@@ -52,7 +62,6 @@ b_draw = cv2.circle(np.array(rgb_b), (int(u_new), int(v_new)), 10, (255,0,0), -1
 
 image = np.hstack([a_draw, b_draw])
 plt.imshow(image)
-plt.savefig('output/tests/projection_test.png')
+plt.savefig('run_don_projection_sanity_check_output.png')
 
-# print the intrinsic matrix used
-print("Intrinsic Matrix: \n{}".format(K))
+print("\nWrote output to run_don_projection_sanity_check_output.png")
