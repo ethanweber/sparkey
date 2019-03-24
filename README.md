@@ -18,7 +18,7 @@ Automatic Keypoint Discovery with Occlusions
 
 - [evaluations](evaluations)
 
-    This folder will hold the results of running an experiment on a selected dataset. The experiment and dataset result will be in a folder name with name `dataset#experiment`. For example, `000##19-03-23_18:27:59`.
+    This folder will hold the results of running an experiment on a selected dataset. The experiment and dataset result will be in a folder name with name `checkpoint_name###experiment###dataset`. For example, `model.ckpt-9576###19-03-23_18:27:59###000`.
 
 - [notebooks](notebooks)
 

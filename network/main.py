@@ -22,10 +22,10 @@ and their detectors are discovered and learned automatically without
 keypoint location supervision.
 
 # ethan
-python main.py --main.py --model_dir=MODEL_DIR --dset=DSET
+python main.py --model_dir=MODEL_DIR --dset=DSET
 example:
 (excluding model_dir creates a timestamped model_dir)
-python main.py --main.py --dset=DSET
+python main.py --dset=DSET
 """
 
 from __future__ import absolute_import
@@ -41,6 +41,7 @@ import sys
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import datetime
+import shutil
 # ethan: make this import better
 import sys
 sys.path.append("../")
@@ -49,6 +50,8 @@ import network.utils as utils
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_boolean("predict", False, "Running inference if true")
+# ethan: adding this to run predictions at different checkpoints
+tf.app.flags.DEFINE_string("latest_filename", None, "Name of model.ckpt-# to use when using the --predict flag.")
 tf.app.flags.DEFINE_string(
     "input",
     "",
@@ -784,7 +787,15 @@ def predict(input_folder, hparams):
 
   sess = tf.Session()
   saver = tf.train.Saver()
-  ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir)
+  
+  # ethan: add a paramter to set the checkpoint
+  # create the file if FLAGS.latest_filename isn't None. rewrite it if it already exists
+  if FLAGS.latest_filename is not None:
+    latest_filename_path = os.path.join(FLAGS.model_dir, FLAGS.latest_filename)
+    f = open(latest_filename_path, "w")
+    f.write("model_checkpoint_path: \"{}\"".format(FLAGS.latest_filename))
+    f.close()
+  ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir, latest_filename=FLAGS.latest_filename)
 
   print("loading model: ", ckpt.model_checkpoint_path)
   saver.restore(sess, ckpt.model_checkpoint_path)
@@ -814,9 +825,11 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      loss_pose=0.2,  # Pose Loss.
+      loss_pose=0.0, # ethan
+      # loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
-      loss_sep=1.0,  # Seperation Loss.
+      loss_sep=0.0, # ethan
+      # loss_sep=1.0,  # Seperation Loss.
       loss_sill=1.0,  # Sillhouette Loss.
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
@@ -856,6 +869,19 @@ def main(argv):
         os.makedirs(actual_model_dir)
     else:
       actual_model_dir = FLAGS.model_dir
+
+    # ethan: save a copy of the network/ directory in the experiment to remember what was used for the experiment
+    # ethan: make this better in the future!
+    current_file = os.path.join(
+      os.path.dirname(os.path.abspath(__file__)),
+      "main.py"
+    )
+    target_file = os.path.join(
+      actual_model_dir,
+      "main.py"
+    )
+    shutil.copy(current_file, target_file)
+
     utils.train_and_eval(
         model_dir=actual_model_dir,
         model_fn=model_fn,

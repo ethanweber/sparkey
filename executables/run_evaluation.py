@@ -14,6 +14,9 @@ outputs to the evaluations/ folder. creates a folder with name of experiment and
 
 example:
 python run_evaluation.py --experiment_name 19-03-23_10:09:07 --dataset_name 999
+
+specify a checkpoint:
+python run_evaluation.py --experiment_name 19-03-24_02:33:20 --dataset_name 000 --checkpoint model.ckpt-9576
 """
 
 import tensorflow as tf
@@ -33,6 +36,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment_name', type=str, default=None, help='The experiment name located in the experiments folder.')
     parser.add_argument('--dataset_name', type=str, default=None, help='The dataset name located in the datasets folder.')
+    parser.add_argument('--checkpoint', type=str, default=None, help='The checkpoint to use to running evaluation.')
     args = parser.parse_args()
 
     experiment_name = args.experiment_name
@@ -51,8 +55,19 @@ if __name__ == "__main__":
         "../datasets",
         dataset_name)
 
+    # figure out checkpoint_name, which will be used in the folder name
+    if args.checkpoint is None:
+        checkpoint_path = os.path.join(experiment_path, "checkpoint")
+        with open(checkpoint_path) as f:
+            first_line = f.readline()
+        start_index = first_line.find("\"")
+        end_index = first_line.find("\"", start_index+1)
+        checkpoint_name = first_line[start_index+1:end_index]
+    else:
+        checkpoint_name = args.checkpoint
+
     # create the evaluation folder
-    evaluation_name = "{}##{}".format(dataset_name, experiment_name)
+    evaluation_name = "{}##{}##{}".format(experiment_name, checkpoint_name, dataset_name)
     evaluation_folder = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "../evaluations",
@@ -87,18 +102,27 @@ if __name__ == "__main__":
         )
 
         # ethan: the output should be specified
-        current_image_file = os.path.join(images_folder, "{:05d}.png".format(i))
-        cv2.imwrite(current_image_file, img0[...,::-1])
+        current_image_file_left = os.path.join(images_folder, "{:05d}_left.png".format(i))
+        current_image_file_right = os.path.join(images_folder, "{:05d}_right.png".format(i))
+        cv2.imwrite(current_image_file_left, img0[...,::-1])
+        cv2.imwrite(current_image_file_right, img1[...,::-1])
 
     # now that the images are written, we can run inference on the images
 
     main_file_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "../network/main.py")
-    command_to_run = "python {} --model_dir={} --input={} --predict".format(
-        main_file_path, 
-        experiment_path,
-        images_folder)
+    if args.checkpoint:
+        command_to_run = "python {} --model_dir={} --input={} --latest_filename {} --predict".format(
+            main_file_path, 
+            experiment_path,
+            images_folder,
+            args.checkpoint)
+    else:
+        command_to_run = "python {} --model_dir={} --input={} --predict".format(
+            main_file_path, 
+            experiment_path,
+            images_folder)
 
     # close the session before running the prediction command
     sess.close()
