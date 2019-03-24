@@ -34,7 +34,11 @@ from scipy import misc
 import sys
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-import network.utils
+import datetime
+# ethan: make this import better
+import sys
+sys.path.append("../")
+import network.utils as utils
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -829,11 +833,25 @@ def main(argv):
 
   hparams = _default_hparams()
 
+
   if FLAGS.predict:
     predict(FLAGS.input, hparams)
   else:
+    # ethan: if no FLAGS.model_dir, then create a new one
+    if FLAGS.model_dir is None:
+      # get the current timestamp
+      timestamp = datetime.datetime.now().strftime("%y-%m-%d_%I:%M:%S")
+      current_path = os.path.dirname(os.path.abspath(__file__))
+      experiments_path = os.path.join(current_path, "../experiments")
+      
+      # make the directory, which should not already exist
+      actual_model_dir = os.path.join(experiments_path, timestamp)
+      if not os.path.exists(actual_model_dir):
+        os.makedirs(actual_model_dir)
+    else:
+      actual_model_dir = FLAGS.model_dir
     utils.train_and_eval(
-        model_dir=FLAGS.model_dir,
+        model_dir=actual_model_dir,
         model_fn=model_fn,
         input_fn=create_input_fn,
         hparams=hparams,

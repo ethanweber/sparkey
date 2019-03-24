@@ -14,11 +14,11 @@ Automatic Keypoint Discovery with Occlusions
 
 - [experiments](experiments)
 
-    This folder will contain the experiments and corresponding TensorBoard sessions. The folders will be named according to the time of experiment, with a timestamp of the form `YYYY-MM-DD_HH:MM:SS`.
+    This folder will contain the experiments and corresponding TensorBoard sessions. The folders will be named according to the time of experiment, with a timestamp of the form `YY-MM-DD_HH:MM:SS`.
 
 - [predictions](predictions)
 
-    This folder will hold the results of running an experiment on a selected dataset. The experiment and dataset result will be in a folder name with name `dataset#experiment`. For example, `000#2019-03-23_18:27:59`.
+    This folder will hold the results of running an experiment on a selected dataset. The experiment and dataset result will be in a folder name with name `dataset#experiment`. For example, `000#19-03-23_18:27:59`.
 
 - [notebooks](notebooks)
 
