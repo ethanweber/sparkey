@@ -129,3 +129,19 @@ if __name__ == "__main__":
 
     print("\nRunning command:\n {}\n\n".format(command_to_run))
     os.system(command_to_run)
+
+    # now go through predict folder and create a full image from the predictions
+    output_images_glob = os.path.join(images_folder, "output/*.png")
+    image_files = sorted(glob.glob(output_images_glob))
+    images = []
+    count = 0
+    for i in range(10):
+        row = []
+        for j in range(2):
+            image = cv2.imread(image_files[count])
+            row.append(image)
+            count += 1
+        images.append(row)
+    rows = [np.hstack(row) for row in images]
+    full_image = np.vstack(rows)
+    cv2.imwrite(os.path.join(images_folder, "output/combined_image.png"), full_image)

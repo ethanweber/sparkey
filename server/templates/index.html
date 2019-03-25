@@ -1,0 +1,22 @@
+<html>
+
+
+<head>
+    <title>Occnet</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <h1>Occnet</h1>
+    <hr>
+    <h2>Evaluations</h1>
+    {% for experiment, checkpoint_name, dataset in evaluations_names %}
+        <div>Experiment: {{experiment}}</div>
+        <div>Checkpoint: {{checkpoint_name}}</div>
+        <div>Dataset: {{dataset}}</div>
+        <img src="/evaluation_image/{{experiment}}%23%23{{checkpoint_name}}%23%23{{dataset}}" alt="{{evaluation_name}}">
+    {% endfor %}
+</body>
+
+</html>
+

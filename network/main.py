@@ -121,9 +121,22 @@ def create_input_fn(split, batch_size):
       """Parses a single tf.Example into image and label tensors."""
       fs = tf.parse_single_example(
           serialized_example,
+          # features={
+          #     "img0": tf.FixedLenFeature([], tf.string),
+          #     "img1": tf.FixedLenFeature([], tf.string),
+          #     "mv0": tf.FixedLenFeature([16], tf.float32),
+          #     "mvi0": tf.FixedLenFeature([16], tf.float32),
+          #     "mv1": tf.FixedLenFeature([16], tf.float32),
+          #     "mvi1": tf.FixedLenFeature([16], tf.float32),
+          # })
+          # ethan: add more configurable support for occnet
           features={
               "img0": tf.FixedLenFeature([], tf.string),
+              "img0_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+              "img0_depth": tf.FixedLenFeature([307200], tf.float32), # 128 x 128
               "img1": tf.FixedLenFeature([], tf.string),
+              "img1_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
+              "img1_depth": tf.FixedLenFeature([307200], tf.float32), # 128 x 128
               "mv0": tf.FixedLenFeature([16], tf.float32),
               "mvi0": tf.FixedLenFeature([16], tf.float32),
               "mv1": tf.FixedLenFeature([16], tf.float32),
@@ -489,6 +502,51 @@ def variance_loss(probmap, ranx, rany, uv):
 
   return tf.reduce_mean(tf.reduce_sum(diff, axis=[2, 3]))
 
+# ethan: created this because we know the depth
+def depth_loss(t, uvz, gt_depth):
+  """Computes the depth loss.
+
+  Args:
+    t: the Transformer instance
+    uvz: [batch, num_kp, 3]
+    gt_depth: [batch, 307200]
+
+  Returns:
+    The depth loss.
+  """
+
+  # reshape the map to an image. recall that we use images of size 128 x 128 though
+  # img_depth = tf.reshape(gt_depth, [-1, 480, 640])
+
+  # convert to image coordinates with correct dimensions
+  xyz = t.scale_normalized_coords_to_image_coords(uvz)
+
+  x = tf.math.floor(xyz[:, :, 0])
+  y = tf.math.floor(xyz[:, :, 1])
+  z = xyz[:, :, 2]
+
+  z_index = tf.dtypes.cast(
+      tf.clip_by_value(x + y*640, 0.0, 307200-1), 
+      tf.int32
+  )
+
+  gt_z_values = []
+  # TODO(ethan): fix this batch calculation! should not set it here to 8!
+  # for i in range(z.shape[0]):
+  for i in range(8):
+      gt_z_values.append(
+          tf.gather(
+              gt_depth[i] / 1000.0,
+              z_index[i]
+          )
+      )
+      
+  gt_z_values = tf.stack(gt_z_values)
+
+  error = tf.losses.mean_squared_error(z, gt_z_values)
+
+  return error
+
 
 def dilated_cnn(images, num_filters, is_training):
   """Constructs a base dilated convolutional network.
@@ -608,12 +666,12 @@ def keypoint_network(rgba,
   prob = slim.conv2d(
       net, num_kp, [3, 3], rate=1, scope="conv_xy", activation_fn=None)
 
-  # TODO(ethan): figure out what our fixed camera distance might be. currently replaced -30 with 0.5
+  # ethan: figure out what our fixed camera distance might be. keypointnet used -30
   # We added the  fixed camera distance as a bias.
   # z = -30 + slim.conv2d(
   #     net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
-  z = 0.5 + slim.conv2d(
-      net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
+  z = slim.conv2d(
+    net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
 
   prob = tf.transpose(prob, [0, 3, 1, 2])
   z = tf.transpose(z, [0, 3, 1, 2])
@@ -668,6 +726,7 @@ def model_fn(features, labels, mode, hparams):
   loss_con = 0
   loss_sep = 0
   loss_lr = 0
+  loss_depth = 0 # ethan adding this because we have ground truth depth
 
   for i in range(2):
     with tf.variable_scope("KeypointNetwork", reuse=i > 0):
@@ -719,6 +778,11 @@ def model_fn(features, labels, mode, hparams):
                                  pconf)
     loss_sep += separation_loss(
         t.unproject(uvz[i])[:, :, :3], hparams.sep_delta)
+    loss_depth += depth_loss(
+      t,
+      uvz[i],
+      features["img%d_depth" % i]
+    )
 
   chordal, angular = relative_pose_loss(
       t.unproject(uvz[0])[:, :, :3],
@@ -731,7 +795,8 @@ def model_fn(features, labels, mode, hparams):
       hparams.loss_sep * loss_sep +
       hparams.loss_sill * loss_sill +
       hparams.loss_lr * loss_lr +
-      hparams.loss_variance * loss_variance
+      hparams.loss_variance * loss_variance +
+      hparams.loss_depth * loss_depth
   )
 
   def touint8(img):
@@ -752,6 +817,7 @@ def model_fn(features, labels, mode, hparams):
     # tf.summary.scalar("lrloss", loss_lr)
     tf.summary.scalar("sill", loss_sill)
     tf.summary.scalar("vloss", loss_variance)
+    tf.summary.scalar("dloss", loss_depth)
 
   return {
       "loss": loss,
@@ -834,6 +900,8 @@ def _default_hparams():
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
       loss_variance=0.5,  # Variance Loss (part of Sillhouette loss).
+      # ethan: added this because we have gt depth
+      loss_depth=1.0, # Depth Loss
 
       sep_delta=0.05,  # Seperation threshold.
       noise=0.1,  # Noise added during estimating rotation.

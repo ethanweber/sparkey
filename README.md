@@ -59,6 +59,13 @@ conda install -c open3d-admin open3d
 conda install -c anaconda tensorflow-gpu
 conda install -c anaconda scipy
 
+# dependencies for the server
+conda install -c anaconda flask
+export FLASK_ENV=development
+cd server/
+export FLASK_APP=server.py
+flask run --host=0.0.0.0
+
 # install kernel for jupyter notebook
 python -m ipykernel install --user --name occnet --display-name "occnet"
 
