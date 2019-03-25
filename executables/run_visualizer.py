@@ -92,6 +92,8 @@ class Visualizer(object):
             uvz = self.get_batch_tensor_from_keypoint(keypoint_list)
             # uvz is what our network should be predicting
 
+            print(self.sess.run(uvz))
+
             # same function used in keypointnet
             def func1(x):
                 return tf.transpose(tf.reshape(x, [-1, 4, 4]), [0, 2, 1])
@@ -109,6 +111,8 @@ class Visualizer(object):
             [newx, newy] = self.sess.run(uvz_proj[0, 0, :2])
             newx = int((newx+1.0) * 64.0)
             # keypointnet assumes flipped, so we reverse that here
+            # newy = 127 - int((newy+1.0) * 64.0)
+            # ethan: taking out the flip for now
             newy = 127 - int((newy+1.0) * 64.0)
 
             # draw the first point that is clicked and the other one

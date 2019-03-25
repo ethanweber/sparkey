@@ -66,6 +66,11 @@ cd server/
 export FLASK_APP=server.py
 flask run --host=0.0.0.0
 
+# for accessing google sheets
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+cd server/ (you will have to download a json file to use the Google Sheets API)
+export GOOGLE_APPLICATION_CREDENTIALS=Occnet-869cc2aa84e8.json
+
 # install kernel for jupyter notebook
 python -m ipykernel install --user --name occnet --display-name "occnet"
 

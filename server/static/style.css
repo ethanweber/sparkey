@@ -1,3 +1,15 @@
 html {
     background-color: lightgray;
 }
+
+.block {
+    padding: 10px;
+}
+
+.metrics {
+    background-color: gray;
+}
+
+.description {
+    background-color: lightgreen;
+}

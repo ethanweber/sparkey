@@ -13,19 +13,12 @@
 # limitations under the License.
 # =============================================================================
 """KeypointNet!!
-
 A reimplementation of 'Discovery of Latent 3D Keypoints via End-to-end
 Geometric Reasoning' keypoint network. Given a single 2D image of a known class,
 this network can predict a set of 3D keypoints that are consistent across
 viewing angles of the same object and across object instances. These keypoints
 and their detectors are discovered and learned automatically without
 keypoint location supervision.
-
-# ethan
-python main.py --model_dir=MODEL_DIR --dset=DSET
-example:
-(excluding model_dir creates a timestamped model_dir)
-python main.py --dset=DSET
 """
 
 from __future__ import absolute_import
@@ -40,18 +33,11 @@ from scipy import misc
 import sys
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-import datetime
-import shutil
-# ethan: make this import better
-import sys
-sys.path.append("../")
-import network.utils as utils
+import utils
 
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_boolean("predict", False, "Running inference if true")
-# ethan: adding this to run predictions at different checkpoints
-tf.app.flags.DEFINE_string("latest_filename", None, "Name of model.ckpt-# to use when using the --predict flag.")
 tf.app.flags.DEFINE_string(
     "input",
     "",
@@ -78,17 +64,13 @@ vw = vh = 128
 
 def create_input_fn(split, batch_size):
   """Returns input_fn for tf.estimator.Estimator.
-
   Reads tfrecords and construts input_fn for either training or eval. All
   tfrecords not in test.txt or dev.txt will be assigned to training set.
-
   Args:
     split: A string indicating the split. Can be either 'train' or 'validation'.
     batch_size: The batch size!
-
   Returns:
     input_fn for tf.estimator.Estimator.
-
   Raises:
     IOError: If test.txt or dev.txt are not found.
   """
@@ -121,22 +103,9 @@ def create_input_fn(split, batch_size):
       """Parses a single tf.Example into image and label tensors."""
       fs = tf.parse_single_example(
           serialized_example,
-          # features={
-          #     "img0": tf.FixedLenFeature([], tf.string),
-          #     "img1": tf.FixedLenFeature([], tf.string),
-          #     "mv0": tf.FixedLenFeature([16], tf.float32),
-          #     "mvi0": tf.FixedLenFeature([16], tf.float32),
-          #     "mv1": tf.FixedLenFeature([16], tf.float32),
-          #     "mvi1": tf.FixedLenFeature([16], tf.float32),
-          # })
-          # ethan: add more configurable support for occnet
           features={
               "img0": tf.FixedLenFeature([], tf.string),
-              "img0_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
-              "img0_depth": tf.FixedLenFeature([307200], tf.float32), # 128 x 128
               "img1": tf.FixedLenFeature([], tf.string),
-              "img1_mask": tf.FixedLenFeature([16384], tf.float32), # 128 x 128
-              "img1_depth": tf.FixedLenFeature([307200], tf.float32), # 128 x 128
               "mv0": tf.FixedLenFeature([16], tf.float32),
               "mvi0": tf.FixedLenFeature([16], tf.float32),
               "mv1": tf.FixedLenFeature([16], tf.float32),
@@ -170,7 +139,6 @@ def create_input_fn(split, batch_size):
 
 class Transformer(object):
   """A utility for projecting 3D points to 2D coordinates and vice versa.
-
   3D points are represented in 4D-homogeneous world coordinates. The pixel
   coordinates are represented in normalized device coordinates [-1, 1].
   See https://learnopengl.com/Getting-started/Coordinate-Systems.
@@ -186,232 +154,36 @@ class Transformer(object):
       lines = f.readlines()
     return self.__get_matrix(lines)
 
-  def __init__(self, w, h, dataset_dir, occnet=False):
-    """
-    occnet = False for keypointnet data
-           = True for occnet data
-    """
-    self.occnet = occnet
+  def __init__(self, w, h, dataset_dir):
     self.w = w
     self.h = h
     p = self.__read_projection_matrix(dataset_dir + "projection.txt")
 
-    if not self.occnet:
-      # keypointnet code
-      # transposed of inversed projection matrix.
-      self.pinv_t = tf.constant([[1.0 / p[0, 0], 0, 0,
-                                  0], [0, 1.0 / p[1, 1], 0, 0], [0, 0, 1, 0],
-                                [0, 0, 0, 1]])
-      self.f = p[0, 0]
-    else:
-      # ethan: now this is a 3x3
-      # ethan: using the full projection matrix for our data
-      self.pinv_t = tf.convert_to_tensor(np.linalg.inv(p), dtype=tf.float32)
-      self.p = tf.convert_to_tensor(p, dtype=tf.float32)
-
-  def scale_normalized_coords_to_image_coords(self, normalized_coords):
-    """
-    Scales the normalized coordinates into the format needed by our projection matrix.
-    
-    Args:
-        normalized_coords: [batch, num_kp, 3] Tensor of keypoints with u and v in the range [-1, 1]
-    Returns:
-        [batch, num_kp, 3]: Keypoints with u in range [0, 640] and v in range [0, 480]
-    """
-
-    # flip the sign of the normalized coordinates
-    y_flip_matrix = tf.constant([
-        [1.0, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0]
-    ])
-    image_coords_y_flipped = tf.matmul(
-        tf.reshape(normalized_coords, [-1, normalized_coords.shape[2].value]),
-        tf.transpose(y_flip_matrix)
-    )
-    new_normalized_coords = tf.reshape(
-        image_coords_y_flipped,
-        [-1, normalized_coords.shape[1].value, normalized_coords.shape[2].value]
-    )
-
-    
-    scale_matrix = tf.constant([
-        [320.0, 0.0, 0.0],
-        [0.0, 240.0, 0.0],
-        [0.0, 0.0, 1.0]
-    ])
-    
-    offset_matrix = tf.constant([320.0, 240.0, 0.0])
-    
-    multiplication = tf.matmul(
-        tf.reshape(new_normalized_coords, [-1, normalized_coords.shape[2].value]),
-        tf.transpose(scale_matrix)
-    )
-    
-    return tf.reshape(
-        multiplication + offset_matrix,
-        [-1, normalized_coords.shape[1].value, normalized_coords.shape[2].value]
-    )
-
-  def scale_image_coords_to_normalized_coords(self, image_coords):
-    """
-    Scales the image coordinates to normalized coordinates in the range of [-1, 1]
-    
-    Args:
-        image_coords: [batch, num_kp, 3]
-    Returns:
-        [batch, num_kp, 3]: with normalized u, v values in range [-1, 1]
-    """
-
-    # y_flip_matrix = tf.constant([
-    #     [1.0, 0.0, 0.0],
-    #     [0.0, -1.0, 0.0],
-    #     [0.0, 0.0, 1.0]
-    # ])
-    # image_coords_y_flipped = tf.matmul(
-    #     tf.reshape(image_coords, [-1, image_coords.shape[2].value]) + tf.constant([0.0, 480.0, 0.0]),
-    #     tf.transpose(y_flip_matrix)
-    # )
-    # image_coords_back = tf.reshape(
-    #     image_coords_y_flipped,
-    #     [-1, image_coords.shape[1].value, image_coords.shape[2].value]
-    # )
-
-    
-    scale_matrix = tf.linalg.inv(
-        tf.constant([
-            [320.0, 0.0, 0.0],
-            [0.0, 240.0, 0.0],
-            [0.0, 0.0, 1.0]
-        ])
-    )
-    
-    offset_matrix = tf.constant([320.0, 240.0, 0.0])
-    
-    multiplication = tf.matmul(
-        tf.reshape(image_coords, [-1, image_coords.shape[2].value]) - offset_matrix,
-        tf.transpose(scale_matrix)
-    )
-    
-    normalized_coords = tf.reshape(
-        multiplication,
-        [-1, image_coords.shape[1].value, image_coords.shape[2].value]
-    )
-
-    # flip the sign of the normalized coordinates
-    y_flip_matrix = tf.constant([
-        [1.0, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0]
-    ])
-    image_coords_y_flipped = tf.matmul(
-        tf.reshape(normalized_coords, [-1, image_coords.shape[2].value]),
-        tf.transpose(y_flip_matrix)
-    )
-    return tf.reshape(
-        image_coords_y_flipped,
-        [-1, image_coords.shape[1].value, image_coords.shape[2].value]
-    )
-
+    # transposed of inversed projection matrix.
+    self.pinv_t = tf.constant([[1.0 / p[0, 0], 0, 0,
+                                0], [0, 1.0 / p[1, 1], 0, 0], [0, 0, 1, 0],
+                               [0, 0, 0, 1]])
+    self.f = p[0, 0]
 
   def project(self, xyzw):
-    """
-    Projects homogeneous 3D coordinates to normalized device coordinates.
-    
-    Args:
-        xyzw: [batch, num_kp, 4]
-    Returns:
-        [batch, num_kp, 2]:
-    """
+    """Projects homogeneous 3D coordinates to normalized device coordinates."""
 
-    if not self.occnet:
-      # keypointnet code
-      z = xyzw[:, :, 2:3] + 1e-8
-      return tf.concat([-self.f * xyzw[:, :, :2] / z, z], axis=2)
-
-    else:
-      # occnet code
-      def batch_matmul(a, b):
-        return tf.reshape(
-            tf.matmul(tf.reshape(a, [-1, a.shape[2].value]), b),
-            [-1, a.shape[1].value, a.shape[2].value])
-
-      # the last coordinate of the homogeneous coordinates
-      w = xyzw[:, :, 3:]
-
-      # project back into the image frame
-      image_coords = batch_matmul(
-        xyzw[:, :, :3] / w, tf.transpose(self.p)
-      )
-
-      # this will be what we are trying to regress for z
-      z = image_coords[:, :, 2:]
-
-      # normalize the uv coordiantes back to [-1, 1] range
-      normalized_uv = self.scale_image_coords_to_normalized_coords(image_coords / z)[:, :, :2]
-
-      # put the regressed z value back in place
-      normalized_coords = tf.concat([normalized_uv, z], axis=2)
-
-      # ethan: maybe need to handle this later
-      # # flip the y value axis to account for projection differences
-      # scaler = tf.constant(
-      #   [
-      #     [1,0,0],
-      #     [0,-1,0],
-      #     [0,0,1]
-      #   ],
-      #   dtype=tf.float32
-      # )
-
-      # # # no transpose needed here
-      # normalized_coords = batch_matmul(normalized_coords, scaler)
-
-      return normalized_coords
+    z = xyzw[:, :, 2:3] + 1e-8
+    return tf.concat([-self.f * xyzw[:, :, :2] / z, z], axis=2)
 
   def unproject(self, xyz):
-    """
-    Unprojects normalized device coordinates with depth to 3D coordinates.
-    
-    Args:
-        xyz: [batch, num_kp, 3]
-    Returns:
-        [batch, num_kp, 4]:
-    """
+    """Unprojects normalized device coordinates with depth to 3D coordinates."""
 
-    if not self.occnet:
-      # keypointnet code
-      z = xyz[:, :, 2:]
-      xy = -xyz * z
+    z = xyz[:, :, 2:]
+    xy = -xyz * z
 
-      def batch_matmul(a, b):
-        return tf.reshape(
-            tf.matmul(tf.reshape(a, [-1, a.shape[2].value]), b),
-            [-1, a.shape[1].value, a.shape[2].value])
+    def batch_matmul(a, b):
+      return tf.reshape(
+          tf.matmul(tf.reshape(a, [-1, a.shape[2].value]), b),
+          [-1, a.shape[1].value, a.shape[2].value])
 
-      return batch_matmul(
-          tf.concat([xy[:, :, :2], z, tf.ones_like(z)], axis=2), self.pinv_t)
-
-    else:
-      # occnet code
-      def batch_matmul(a, b):
-        return tf.reshape(
-            tf.matmul(tf.reshape(a, [-1, a.shape[2].value]), b),
-            [-1, a.shape[1].value, a.shape[2].value])
-
-      # get the z values
-      z = xyz[:, :, 2:]
-
-      # convert to image coordinates
-      uv = self.scale_normalized_coords_to_image_coords(xyz)[:, :, :2]
-
-      # put into camera plane coordinates, which requires multiplying by z
-      uvz = tf.concat([uv * z, z], axis=2)
-
-      # multiply by inverse projection matrix and concatenate 1s
-      return tf.concat(
-        [batch_matmul(uvz, tf.transpose(self.pinv_t)), tf.ones_like(z)], axis=2
-      )
+    return batch_matmul(
+        tf.concat([xy[:, :, :2], z, tf.ones_like(z)], axis=2), self.pinv_t)
 
 
 def meshgrid(h):
@@ -424,16 +196,13 @@ def meshgrid(h):
 
 def estimate_rotation(xyz0, xyz1, pconf, noise):
   """Estimates the rotation between two sets of keypoints.
-
   The rotation is estimated by first subtracting mean from each set of keypoints
   and computing SVD of the covariance matrix.
-
   Args:
     xyz0: [batch, num_kp, 3] The first set of keypoints.
     xyz1: [batch, num_kp, 3] The second set of keypoints.
     pconf: [batch, num_kp] The weights used to compute the rotation estimate.
     noise: A number indicating the noise added to the keypoints.
-
   Returns:
     [batch, 3, 3] A batch of transposed 3 x 3 rotation matrices.
   """
@@ -460,14 +229,12 @@ def estimate_rotation(xyz0, xyz1, pconf, noise):
 
 def relative_pose_loss(xyz0, xyz1, rot, pconf, noise):
   """Computes the relative pose loss (chordal, angular).
-
   Args:
     xyz0: [batch, num_kp, 3] The first set of keypoints.
     xyz1: [batch, num_kp, 3] The second set of keypoints.
     rot: [batch, 4, 4] The ground-truth rotation matrices.
     pconf: [batch, num_kp] The weights used to compute the rotation estimate.
     noise: A number indicating the noise added to the keypoints.
-
   Returns:
     A tuple (chordal loss, angular loss).
   """
@@ -483,11 +250,9 @@ def relative_pose_loss(xyz0, xyz1, rot, pconf, noise):
 
 def separation_loss(xyz, delta):
   """Computes the separation loss.
-
   Args:
     xyz: [batch, num_kp, 3] Input keypoints.
     delta: A separation threshold. Incur 0 cost if the distance >= delta.
-
   Returns:
     The seperation loss.
   """
@@ -507,12 +272,10 @@ def separation_loss(xyz, delta):
 
 def consistency_loss(uv0, uv1, pconf):
   """Computes multi-view consistency loss between two sets of keypoints.
-
   Args:
     uv0: [batch, num_kp, 2] The first set of keypoint 2D coordinates.
     uv1: [batch, num_kp, 2] The second set of keypoint 2D coordinates.
     pconf: [batch, num_kp] The weights used to compute the rotation estimate.
-
   Returns:
     The consistency loss.
   """
@@ -525,13 +288,11 @@ def consistency_loss(uv0, uv1, pconf):
 
 def variance_loss(probmap, ranx, rany, uv):
   """Computes the variance loss as part of Sillhouette consistency.
-
   Args:
     probmap: [batch, num_kp, h, w] The distribution map of keypoint locations.
     ranx: X-axis meshgrid.
     rany: Y-axis meshgrid.
     uv: [batch, num_kp, 2] Keypoint locations (in NDC).
-
   Returns:
     The variance loss.
   """
@@ -550,65 +311,16 @@ def variance_loss(probmap, ranx, rany, uv):
 
   return tf.reduce_mean(tf.reduce_sum(diff, axis=[2, 3]))
 
-# ethan: created this because we know the depth
-def depth_loss(t, uvz, gt_depth):
-  """Computes the depth loss.
-
-  Args:
-    t: the Transformer instance
-    uvz: [batch, num_kp, 3]
-    gt_depth: [batch, 307200]
-
-  Returns:
-    The depth loss.
-  """
-
-  # reshape the map to an image. recall that we use images of size 128 x 128 though
-  # img_depth = tf.reshape(gt_depth, [-1, 480, 640])
-
-  # convert to image coordinates with correct dimensions
-  xyz = t.scale_normalized_coords_to_image_coords(uvz)
-
-  x = tf.math.floor(xyz[:, :, 0])
-  y = tf.math.floor(xyz[:, :, 1])
-  z = xyz[:, :, 2]
-
-  # todo: ethan, verify this is correct
-  z_index = tf.dtypes.cast(
-      tf.clip_by_value(x + y*640, 0.0, 307200-1), 
-      tf.int32
-  )
-
-  gt_z_values = []
-  # TODO(ethan): fix this batch calculation! should not set it here to 8!
-  # for i in range(z.shape[0]):
-  for i in range(8):
-      gt_z_values.append(
-          tf.gather(
-              gt_depth[i] / 1000.0,
-              z_index[i]
-          )
-      )
-      
-  gt_z_values = tf.stack(gt_z_values)
-
-  error = tf.losses.mean_squared_error(z, gt_z_values)
-
-  return error
-
 
 def dilated_cnn(images, num_filters, is_training):
   """Constructs a base dilated convolutional network.
-
   Args:
     images: [batch, h, w, 3] Input RGB images.
     num_filters: The number of filters for all layers.
     is_training: True if this function is called during training.
-
   Returns:
     Output of this dilated CNN.
   """
-  #ethan: doesn't images have a 4th channeL?
 
   net = images
 
@@ -625,12 +337,10 @@ def dilated_cnn(images, num_filters, is_training):
 
 def orientation_network(images, num_filters, is_training):
   """Constructs a network that infers the orientation of an object.
-
   Args:
     images: [batch, h, w, 3] Input RGB images.
     num_filters: The number of filters for all layers.
     is_training: True if this function is called during training.
-
   Returns:
     Output of the orientation network.
   """
@@ -663,7 +373,6 @@ def keypoint_network(rgba,
                      lr_gt=None,
                      anneal=1):
   """Constructs our main keypoint network that predicts 3D keypoints.
-
   Args:
     rgba: [batch, h, w, 4] Input RGB images with alpha channel.
     num_filters: The number of filters for all layers.
@@ -673,7 +382,6 @@ def keypoint_network(rgba,
         Then we linearly anneal in the prediction.
     anneal: A number between [0, 1] where 1 means using the ground-truth
         orientation and 0 means using our estimate.
-
   Returns:
     uv: [batch, num_kp, 2] 2D locations of keypoints.
     z: [batch, num_kp] The depth of keypoints.
@@ -683,7 +391,6 @@ def keypoint_network(rgba,
     variance: The variance loss.
     prob_viz: A visualization of all predicted keypoints.
     prob_vizs: A list of visualizations of each keypoint.
-
   """
 
   images = rgba[:, :, :, :3]
@@ -715,12 +422,9 @@ def keypoint_network(rgba,
   prob = slim.conv2d(
       net, num_kp, [3, 3], rate=1, scope="conv_xy", activation_fn=None)
 
-  # ethan: figure out what our fixed camera distance might be. keypointnet used -30
   # We added the  fixed camera distance as a bias.
-  # z = -30 + slim.conv2d(
-  #     net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
-  z = slim.conv2d(
-    net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
+  z = -30 + slim.conv2d(
+      net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
 
   prob = tf.transpose(prob, [0, 3, 1, 2])
   z = tf.transpose(z, [0, 3, 1, 2])
@@ -756,8 +460,7 @@ def model_fn(features, labels, mode, hparams):
   del labels
 
   is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-  # TODO(ethan): need to change the occnet flag later
-  t = Transformer(vw, vh, FLAGS.dset, occnet=True)
+  t = Transformer(vw, vh, FLAGS.dset)
 
   def func1(x):
     return tf.transpose(tf.reshape(features[x], [-1, 4, 4]), [0, 2, 1])
@@ -775,11 +478,9 @@ def model_fn(features, labels, mode, hparams):
   loss_con = 0
   loss_sep = 0
   loss_lr = 0
-  loss_depth = 0 # ethan adding this because we have ground truth depth
 
   for i in range(2):
     with tf.variable_scope("KeypointNetwork", reuse=i > 0):
-
       # anneal: 1 = using ground-truth, 0 = using our estimate orientation.
       anneal = tf.to_float(hparams.lr_anneal_end - tf.train.get_global_step())
       anneal = tf.clip_by_value(
@@ -827,11 +528,6 @@ def model_fn(features, labels, mode, hparams):
                                  pconf)
     loss_sep += separation_loss(
         t.unproject(uvz[i])[:, :, :3], hparams.sep_delta)
-    loss_depth += depth_loss(
-      t,
-      uvz[i],
-      features["img%d_depth" % i]
-    )
 
   chordal, angular = relative_pose_loss(
       t.unproject(uvz[0])[:, :, :3],
@@ -844,8 +540,7 @@ def model_fn(features, labels, mode, hparams):
       hparams.loss_sep * loss_sep +
       hparams.loss_sill * loss_sill +
       hparams.loss_lr * loss_lr +
-      hparams.loss_variance * loss_variance +
-      hparams.loss_depth * loss_depth
+      hparams.loss_variance * loss_variance
   )
 
   def touint8(img):
@@ -858,15 +553,14 @@ def model_fn(features, labels, mode, hparams):
       tf.summary.image("2_f%02d" % i, vizs[0][i])
 
   with tf.variable_scope("stats"):
-    # tf.summary.scalar("anneal", anneal)
+    tf.summary.scalar("anneal", anneal)
     tf.summary.scalar("closs", loss_con)
-    # tf.summary.scalar("seploss", loss_sep)
+    tf.summary.scalar("seploss", loss_sep)
     tf.summary.scalar("angular", angular)
     tf.summary.scalar("chordal", chordal)
-    # tf.summary.scalar("lrloss", loss_lr)
+    tf.summary.scalar("lrloss", loss_lr)
     tf.summary.scalar("sill", loss_sill)
     tf.summary.scalar("vloss", loss_variance)
-    tf.summary.scalar("dloss", loss_depth)
 
   return {
       "loss": loss,
@@ -902,15 +596,7 @@ def predict(input_folder, hparams):
 
   sess = tf.Session()
   saver = tf.train.Saver()
-  
-  # ethan: add a paramter to set the checkpoint
-  # create the file if FLAGS.latest_filename isn't None. rewrite it if it already exists
-  if FLAGS.latest_filename is not None:
-    latest_filename_path = os.path.join(FLAGS.model_dir, FLAGS.latest_filename)
-    f = open(latest_filename_path, "w")
-    f.write("model_checkpoint_path: \"{}\"".format(FLAGS.latest_filename))
-    f.close()
-  ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir, latest_filename=FLAGS.latest_filename)
+  ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir)
 
   print("loading model: ", ckpt.model_checkpoint_path)
   saver.restore(sess, ckpt.model_checkpoint_path)
@@ -940,18 +626,12 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      loss_pose=0.0, # ethan
-      # loss_pose=0.2,  # Pose Loss.
+      loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
-      loss_sep=0.0, # ethan
-      # loss_sep=1.0,  # Seperation Loss.
+      loss_sep=1.0,  # Seperation Loss.
       loss_sill=1.0,  # Sillhouette Loss.
-      loss_lr=0.0,  # ethan
-      # loss_lr=1.0,  # Orientation Loss.
-      loss_variance=0.0,  # ethan
-      # loss_variance=0.5,  # Variance Loss (part of Sillhouette loss).
-      # ethan: added this because we have gt depth
-      loss_depth=1.0, # Depth Loss
+      loss_lr=1.0,  # Orientation Loss.
+      loss_variance=0.5,  # Variance Loss (part of Sillhouette loss).
 
       sep_delta=0.05,  # Seperation threshold.
       noise=0.1,  # Noise added during estimating rotation.
@@ -970,38 +650,11 @@ def main(argv):
 
   hparams = _default_hparams()
 
-
   if FLAGS.predict:
     predict(FLAGS.input, hparams)
   else:
-    # ethan: if no FLAGS.model_dir, then create a new one with a timestamp
-    if FLAGS.model_dir is None:
-      # get the current timestamp
-      timestamp = datetime.datetime.now().strftime("%y-%m-%d_%I:%M:%S")
-      current_path = os.path.dirname(os.path.abspath(__file__))
-      experiments_path = os.path.join(current_path, "../experiments")
-      
-      # make the directory, which should not already exist
-      actual_model_dir = os.path.join(experiments_path, timestamp)
-      if not os.path.exists(actual_model_dir):
-        os.makedirs(actual_model_dir)
-    else:
-      actual_model_dir = FLAGS.model_dir
-
-    # ethan: save a copy of the network/ directory in the experiment to remember what was used for the experiment
-    # ethan: make this better in the future!
-    current_file = os.path.join(
-      os.path.dirname(os.path.abspath(__file__)),
-      "main.py"
-    )
-    target_file = os.path.join(
-      actual_model_dir,
-      "main.py"
-    )
-    shutil.copy(current_file, target_file)
-
     utils.train_and_eval(
-        model_dir=actual_model_dir,
+        model_dir=FLAGS.model_dir,
         model_fn=model_fn,
         input_fn=create_input_fn,
         hparams=hparams,

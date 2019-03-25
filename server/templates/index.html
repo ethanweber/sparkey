@@ -7,16 +7,33 @@
 </head>
 
 <body>
-    <h1>Occnet</h1>
+    <h1>Occnet: Automatic Keypoint Discovery with Occlusions</h1>
+    <div>Project documentation is located 
+        <a href="https://docs.google.com/document/d/1ENC_n3Nv3K3bh-Yox4OYBa5bTmyvBsDmyYCt5q3sLHc/edit?usp=sharing">here</a>.
+    </div>
+    <div>
+        The GitHub repo is located <a href="https://github.com/ethanweber/occnet">here</a>.
+    </div>
     <hr>
     <h2>Evaluations</h1>
-    {% for experiment, checkpoint_name, dataset in evaluations_names %}
-        <div>Experiment: {{experiment}}</div>
-        <div>Checkpoint: {{checkpoint_name}}</div>
-        <div>Dataset: {{dataset}}</div>
-        <img src="/evaluation_image/{{experiment}}%23%23{{checkpoint_name}}%23%23{{dataset}}" alt="{{evaluation_name}}">
+    {% for experiment, checkpoint_name, dataset, description in data %}
+        <div class="block">
+            <div>Experiment: {{experiment}}</div>
+            <div>Checkpoint: {{checkpoint_name}}</div>
+            <div>Dataset: {{dataset}}</div>
+            <div class="metrics">
+                <div>Metrics:</div>
+            </div>
+            <div class="description">
+                <div>Description of experiment {{experiment}}:</div>
+                <br>
+                {{description}}
+                <br>
+            </div>
+            <div><a href="/evaluation_image/{{experiment}}%23%23{{checkpoint_name}}%23%23{{dataset}}">Evaluation Image</a></div>
+            <!-- <img src="/evaluation_image/{{experiment}}%23%23{{checkpoint_name}}%23%23{{dataset}}"> -->
+        </div>
     {% endfor %}
 </body>
 
 </html>
-
