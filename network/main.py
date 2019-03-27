@@ -839,24 +839,20 @@ def model_fn(features, labels, mode, hparams):
       uvz[i],
       features["img%d_depth" % i]
     )
-  
-  loss_depth = loss_depth*depth_multiplier
 
   chordal, angular = relative_pose_loss(
       t.unproject(uvz[0])[:, :, :3],
       t.unproject(uvz[1])[:, :, :3], tf.matmul(mvi[0], mv[1]), pconf,
       hparams.noise)
 
-  angular = angular*pose_multiplier
-
   loss = (
-      hparams.loss_pose * angular +
+      hparams.loss_pose * angular+#*pose_multiplier +
       hparams.loss_con * loss_con +
       hparams.loss_sep * loss_sep +
       hparams.loss_sill * loss_sill +
       hparams.loss_lr * loss_lr +
       hparams.loss_variance * loss_variance +
-      hparams.loss_depth * loss_depth
+      hparams.loss_depth * loss_depth#*depth_multiplier
   )
 
   def touint8(img):
@@ -953,16 +949,16 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      # loss_pose=0.0, # ethan
-      loss_pose=0.2,  # Pose Loss.
+      loss_pose=0.0, # ethan
+      # loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
-      # loss_sep=0.0, # ethan
-      loss_sep=1.0,  # Seperation Loss.
+      loss_sep=0.0, # ethan
+      # loss_sep=2.0,  # Seperation Loss.
       loss_sill=1.0,  # Sillhouette Loss.
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
-      # loss_variance=0.0,  # ethan
-      loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
+      loss_variance=0.0,  # ethan
+      # loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
       # ethan: added this because we have gt depth
       # loss_depth=0.0,
       loss_depth=1.0, # Depth Loss
@@ -970,7 +966,7 @@ def _default_hparams():
       remove_depth_start_pose=10000,
 
       # sep_delta=0.05,  # Seperation threshold.
-      sep_delta=0.005,  # ethan: seperation loss with our data. should be smaller I think
+      sep_delta=0.002,  # ethan: seperation loss with our data. should be smaller I think
       noise=0.1,  # Noise added during estimating rotation.
 
       learning_rate=1.0e-3,
