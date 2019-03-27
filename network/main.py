@@ -824,10 +824,10 @@ def model_fn(features, labels, mode, hparams):
   pconf = tf.ones(
       [tf.shape(uv)[0], tf.shape(uv)[1]], dtype=tf.float32) / hparams.num_kp
 
-  pose_multiplier = tf.to_float(tf.train.get_global_step() - hparams.remove_depth_start_pose)
-  pose_multiplier = tf.clip_by_value(
-    pose_multiplier / hparams.remove_depth_start_pose, 0.0, 1.0)
-  depth_multiplier = 1.0 - pose_multiplier
+  depth_multiplier = tf.to_float(hparams.remove_depth_start_pose - tf.train.get_global_step())
+  depth_multiplier = tf.clip_by_value(
+    depth_multiplier / hparams.remove_depth_start_pose, 0.0, 1.0)
+  pose_multiplier = 1.0 - depth_multiplier
 
   for i in range(2):
     loss_con += consistency_loss(uvz_proj[i][:, :, :2], uvz[1 - i][:, :, :2],
