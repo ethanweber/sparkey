@@ -108,7 +108,9 @@ class Visualizer(object):
             world_coords = tf.matmul(homogenous_world_coords, mvi0)
             uvz_proj = self.transformer.project(tf.matmul(world_coords, mv1))
 
-            [newx, newy] = self.sess.run(uvz_proj[0, 0, :2])
+            homogenous_world_coords_np, new_coords = self.sess.run([homogenous_world_coords, uvz_proj[0, 0, :2]])
+            print(homogenous_world_coords_np)
+            [newx, newy] = new_coords
             newx = int((newx+1.0) * 64.0)
             # keypointnet assumes flipped, so we reverse that here
             # newy = 127 - int((newy+1.0) * 64.0)

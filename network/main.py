@@ -50,6 +50,8 @@ import network.utils as utils
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_boolean("predict", False, "Running inference if true")
+# ethan: adding this to run on original network if desired
+tf.app.flags.DEFINE_boolean("keypointnet", False, "Using the keypointnet data if true")
 # ethan: adding this to run predictions at different checkpoints
 tf.app.flags.DEFINE_string("latest_filename", None, "Name of model.ckpt-# to use when using the --predict flag.")
 tf.app.flags.DEFINE_string(
@@ -757,7 +759,7 @@ def model_fn(features, labels, mode, hparams):
 
   is_training = (mode == tf.estimator.ModeKeys.TRAIN)
   # TODO(ethan): need to change the occnet flag later
-  t = Transformer(vw, vh, FLAGS.dset, occnet=True)
+  t = Transformer(vw, vh, FLAGS.dset, occnet=not FLAGS.keypointnet)
 
   def func1(x):
     return tf.transpose(tf.reshape(features[x], [-1, 4, 4]), [0, 2, 1])
@@ -822,6 +824,11 @@ def model_fn(features, labels, mode, hparams):
   pconf = tf.ones(
       [tf.shape(uv)[0], tf.shape(uv)[1]], dtype=tf.float32) / hparams.num_kp
 
+  pose_multiplier = tf.to_float(hparams.remove_depth_start_pose - tf.train.get_global_step())
+  pose_multiplier = tf.clip_by_value(
+    pose_multiplier / hparams.remove_depth_start_pose, 0.0, 1.0)
+  depth_multiplier = 1.0 - pose_multiplier
+
   for i in range(2):
     loss_con += consistency_loss(uvz_proj[i][:, :, :2], uvz[1 - i][:, :, :2],
                                  pconf)
@@ -832,11 +839,15 @@ def model_fn(features, labels, mode, hparams):
       uvz[i],
       features["img%d_depth" % i]
     )
+  
+  loss_depth = loss_depth*depth_multiplier
 
   chordal, angular = relative_pose_loss(
       t.unproject(uvz[0])[:, :, :3],
       t.unproject(uvz[1])[:, :, :3], tf.matmul(mvi[0], mv[1]), pconf,
       hparams.noise)
+
+  angular = angular*pose_multiplier
 
   loss = (
       hparams.loss_pose * angular +
@@ -858,12 +869,12 @@ def model_fn(features, labels, mode, hparams):
       tf.summary.image("2_f%02d" % i, vizs[0][i])
 
   with tf.variable_scope("stats"):
-    # tf.summary.scalar("anneal", anneal)
+    tf.summary.scalar("anneal", anneal)
     tf.summary.scalar("closs", loss_con)
-    # tf.summary.scalar("seploss", loss_sep)
+    tf.summary.scalar("seploss", loss_sep)
     tf.summary.scalar("angular", angular)
     tf.summary.scalar("chordal", chordal)
-    # tf.summary.scalar("lrloss", loss_lr)
+    tf.summary.scalar("lrloss", loss_lr)
     tf.summary.scalar("sill", loss_sill)
     tf.summary.scalar("vloss", loss_variance)
     tf.summary.scalar("dloss", loss_depth)
@@ -940,20 +951,24 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      loss_pose=0.0, # ethan
-      # loss_pose=0.2,  # Pose Loss.
+      # loss_pose=0.0, # ethan
+      loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
-      loss_sep=0.0, # ethan
-      # loss_sep=1.0,  # Seperation Loss.
+      # loss_sep=0.0, # ethan
+      loss_sep=3.0,  # Seperation Loss.
       loss_sill=1.0,  # Sillhouette Loss.
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
-      loss_variance=0.0,  # ethan
-      # loss_variance=0.5,  # Variance Loss (part of Sillhouette loss).
+      # loss_variance=0.0,  # ethan
+      loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
       # ethan: added this because we have gt depth
+      # loss_depth=0.0,
       loss_depth=1.0, # Depth Loss
+      # when to remove depth from loss
+      remove_depth_start_pose=10000,
 
-      sep_delta=0.05,  # Seperation threshold.
+      # sep_delta=0.05,  # Seperation threshold.
+      sep_delta=0.005,  # ethan: seperation loss with our data. should be smaller I think
       noise=0.1,  # Noise added during estimating rotation.
 
       learning_rate=1.0e-3,

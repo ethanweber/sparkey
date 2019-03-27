@@ -17,6 +17,9 @@ python run_evaluation.py --experiment_name 19-03-23_10:09:07 --dataset_name 999
 
 specify a checkpoint:
 python run_evaluation.py --experiment_name 19-03-24_02:33:20 --dataset_name 000 --checkpoint model.ckpt-9576
+
+to run with keypointnet
+add --keypointnet
 """
 
 import tensorflow as tf
@@ -37,6 +40,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment_name', type=str, default=None, help='The experiment name located in the experiments folder.')
     parser.add_argument('--dataset_name', type=str, default=None, help='The dataset name located in the datasets folder.')
     parser.add_argument('--checkpoint', type=str, default=None, help='The checkpoint to use to running evaluation.')
+    parser.add_argument('--keypointnet', default=False, action='store_true', help='Use this flag if running on keypointnet data.')
     args = parser.parse_args()
 
     experiment_name = args.experiment_name
@@ -83,21 +87,17 @@ if __name__ == "__main__":
 
     # add images to the folder
     dataset_dir = dataset_path
-    dataloader = OccnetTfrecordLoader(dataset_dir, occnet_data=True)
+    dataloader = OccnetTfrecordLoader(dataset_dir, occnet_data=not args.keypointnet)
     sess = tf.Session()
     features = dataloader.get_features()
 
     # ethan: make the number of images a parameter
     for i in range(20):
 
-        img0, img0_mask, img0_depth, img1, img1_mask, img1_depth = sess.run(
+        img0, img1 = sess.run(
             [
                 features["img0_png"][0, :, :, :3],
-                features["img0_mask"],
-                features["img0_depth"],
-                features["img1_png"][0, :, :, :3],
-                features["img1_mask"],
-                features["img1_depth"]
+                features["img1_png"][0, :, :, :3]
             ]
         )
 
@@ -112,17 +112,17 @@ if __name__ == "__main__":
     main_file_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "../network/main.py")
+        
+    command_to_run = "python {} --model_dir={} --input={} --predict".format(
+        main_file_path, 
+        experiment_path,
+        images_folder)
+
     if args.checkpoint:
-        command_to_run = "python {} --model_dir={} --input={} --latest_filename {} --predict".format(
-            main_file_path, 
-            experiment_path,
-            images_folder,
-            args.checkpoint)
-    else:
-        command_to_run = "python {} --model_dir={} --input={} --predict".format(
-            main_file_path, 
-            experiment_path,
-            images_folder)
+        command_to_run += " --latest_filename {}".format(args.checkpoint)
+
+    if args.keypointnet:
+        command_to_run += " --keypointnet"
 
     # close the session before running the prediction command
     sess.close()

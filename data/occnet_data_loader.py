@@ -82,6 +82,10 @@ class OccnetTfrecordLoader(object):
                     serialized_example,
                     features=self.keypointnet_feature_set
                 )
+                # before normalizing
+                fs["img0_png"] = tf.image.decode_png(fs["img0"], 4)
+                fs["img1_png"] = tf.image.decode_png(fs["img1"], 4)
+                
                 fs["img0"] = tf.div(tf.to_float(tf.image.decode_png(fs["img0"], 4)), 255)
                 fs["img1"] = tf.div(tf.to_float(tf.image.decode_png(fs["img1"], 4)), 255)
 
