@@ -957,7 +957,7 @@ def _default_hparams():
       loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
       # loss_sep=0.0, # ethan
-      loss_sep=3.0,  # Seperation Loss.
+      loss_sep=1.0,  # Seperation Loss.
       loss_sill=1.0,  # Sillhouette Loss.
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
