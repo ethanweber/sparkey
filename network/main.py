@@ -824,7 +824,7 @@ def model_fn(features, labels, mode, hparams):
   pconf = tf.ones(
       [tf.shape(uv)[0], tf.shape(uv)[1]], dtype=tf.float32) / hparams.num_kp
 
-  pose_multiplier = tf.to_float(hparams.remove_depth_start_pose - tf.train.get_global_step())
+  pose_multiplier = tf.to_float(tf.train.get_global_step() - hparams.remove_depth_start_pose)
   pose_multiplier = tf.clip_by_value(
     pose_multiplier / hparams.remove_depth_start_pose, 0.0, 1.0)
   depth_multiplier = 1.0 - pose_multiplier
@@ -878,6 +878,8 @@ def model_fn(features, labels, mode, hparams):
     tf.summary.scalar("sill", loss_sill)
     tf.summary.scalar("vloss", loss_variance)
     tf.summary.scalar("dloss", loss_depth)
+    tf.summary.scalar("pose_multiplier", pose_multiplier)
+    tf.summary.scalar("depth_multiplier", depth_multiplier)
 
   return {
       "loss": loss,
