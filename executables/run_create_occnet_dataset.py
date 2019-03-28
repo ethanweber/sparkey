@@ -59,7 +59,7 @@ def generate(tfrecord_filename, num_data_points):
 
                     # get a data pair and unpack it
                     # ethan: maybe be careful about how far apart the image pairs could be
-                    K, a_image_data, b_image_data = dataloader.get_random_data_pair()
+                    K, a_image_data, b_image_data, scene_name = dataloader.get_random_data_pair()
                     rgb_a, depth_a, mask_a, pose_a = a_image_data
                     rgb_b, depth_b, mask_b, pose_b = b_image_data
                     
@@ -111,6 +111,9 @@ def generate(tfrecord_filename, num_data_points):
                     mati0 = mati0.flatten()
                     mati1 = mati1.flatten()
 
+                    centroid = np.array([dataloader.centroid_and_radius[scene_name]["centroid"]])
+                    radius = np.array([dataloader.centroid_and_radius[scene_name]["radius"]])
+
                     # feed the placeholders for the images
                     st0, st1 = sess.run([encoded0, encoded1],
                         feed_dict={im0: image0, im1: image1})
@@ -136,6 +139,10 @@ def generate(tfrecord_filename, num_data_points):
                                     float_list=tf.train.FloatList(value=mat1)),
                                 'mvi1': tf.train.Feature(
                                     float_list=tf.train.FloatList(value=mati1)),
+                                'centroid': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=centroid)),
+                                'radius': tf.train.Feature(
+                                    float_list=tf.train.FloatList(value=radius)),
                             }
                         )
                     )
@@ -211,7 +218,7 @@ def main(argv):
         f.close()
 
     # write the instrinsics file
-    K, _, _ = dataloader.get_random_data_pair()
+    K, _, _, _ = dataloader.get_random_data_pair()
     f = open(os.path.join(new_dataset_path, "projection.txt"), "w+")
     for row in K:
         row_length = len(row)

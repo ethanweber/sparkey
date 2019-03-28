@@ -143,6 +143,8 @@ def create_input_fn(split, batch_size):
               "mvi0": tf.FixedLenFeature([16], tf.float32),
               "mv1": tf.FixedLenFeature([16], tf.float32),
               "mvi1": tf.FixedLenFeature([16], tf.float32),
+              "centroid": tf.FixedLenFeature([1], tf.float32),
+              "radius": tf.FixedLenFeature([1], tf.float32),
           })
 
       fs["img0"] = tf.div(tf.to_float(tf.image.decode_png(fs["img0"], 4)), 255)
@@ -553,7 +555,7 @@ def variance_loss(probmap, ranx, rany, uv):
   return tf.reduce_mean(tf.reduce_sum(diff, axis=[2, 3]))
 
 # ethan: created this because we know the depth
-def depth_loss(t, uvz, gt_depth):
+def depth_loss(t, uvz, gt_depth, centroid, radius):
   """Computes the depth loss.
 
   Args:
@@ -575,26 +577,30 @@ def depth_loss(t, uvz, gt_depth):
   y = tf.math.floor(xyz[:, :, 1])
   z = xyz[:, :, 2]
 
-  # todo: ethan, verify this is correct
-  z_index = tf.dtypes.cast(
-      tf.clip_by_value(x + y*640, 0.0, 307200-1), 
-      tf.int32
+  error = tf.reduce_sum(
+      tf.maximum(tf.square(z - centroid) - tf.square(radius), 0.0)
   )
 
-  gt_z_values = []
-  # TODO(ethan): fix this batch calculation! should not set it here to 8!
-  # for i in range(z.shape[0]):
-  for i in range(8):
-      gt_z_values.append(
-          tf.gather(
-              gt_depth[i] / 1000.0,
-              z_index[i]
-          )
-      )
-      
-  gt_z_values = tf.stack(gt_z_values)
+  # # todo: ethan, verify this is correct
+  # z_index = tf.dtypes.cast(
+  #     tf.clip_by_value(x + y*640, 0.0, 307200-1), 
+  #     tf.int32
+  # )
 
-  error = tf.losses.mean_squared_error(z, gt_z_values)
+  # gt_z_values = []
+  # # TODO(ethan): fix this batch calculation! should not set it here to 8!
+  # # for i in range(z.shape[0]):
+  # for i in range(8):
+  #     gt_z_values.append(
+  #         tf.gather(
+  #             gt_depth[i] / 1000.0,
+  #             z_index[i]
+  #         )
+  #     )
+      
+  # gt_z_values = tf.stack(gt_z_values)
+
+  # error = tf.losses.mean_squared_error(z, gt_z_values)
 
   return error
 
@@ -838,7 +844,9 @@ def model_fn(features, labels, mode, hparams):
     loss_depth += depth_loss(
       t,
       uvz[i],
-      features["img%d_depth" % i]
+      features["img%d_depth" % i],
+      features["centroid"],
+      features["radius"]
     )
 
   chordal, angular = relative_pose_loss(
@@ -853,7 +861,7 @@ def model_fn(features, labels, mode, hparams):
       hparams.loss_sill * loss_sill +
       hparams.loss_lr * loss_lr +
       hparams.loss_variance * loss_variance +
-      hparams.loss_depth * loss_depth*depth_multiplier
+      hparams.loss_depth * loss_depth
   )
 
   def touint8(img):

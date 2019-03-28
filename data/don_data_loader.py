@@ -43,6 +43,11 @@ class DonDataLoader(object):
             self.dataset = SpartanDataset(config=self.config)
             self.dataset.set_parameters_from_training_config(self.train_config)
 
+        # holds centroid and radius for each scene
+        # these are for min and max z values currently. maybe include x, y, and z in the future.
+        # self.centroid_and_radius[scene_name]["centroid"] or self.centroid_and_radius[scene_name]["radius"]
+        self.centroid_and_radius = {}
+
     def get_random_scene_from_object_id(self, object_id=None):
         # set to first object_id if not specified
         if object_id is None:
@@ -84,6 +89,31 @@ class DonDataLoader(object):
                 return False
         return True
 
+    def set_centroid_and_radius_for_scene(self, scene_name):
+        """ sets the centroid and radius for scene with the min and max z value in the scene
+        """
+
+        all_frames = list(self.dataset.get_pose_data(scene_name).keys())
+        global_min_depth = float("inf")
+        global_max_depth = 0.0
+        for frame in all_frames:
+            rgb_a, depth_a, mask_a, pose_a = self.dataset.get_rgbd_mask_pose(scene_name, frame)
+            masked_depth = np.array(mask_a)*np.array(depth_a)
+            min_depth = masked_depth[masked_depth > 0].min() / 1000.0
+            max_depth = masked_depth[masked_depth > 0].max() / 1000.0
+            
+            global_min_depth = min(global_min_depth, min_depth)
+            global_max_depth = max(global_max_depth, max_depth)
+        z_min = global_min_depth
+        z_max = global_max_depth
+
+        radius = (z_max - z_min) / 2.0
+        centroid = radius + z_min
+
+        self.centroid_and_radius[scene_name] = {}
+        self.centroid_and_radius[scene_name]["centroid"] = centroid
+        self.centroid_and_radius[scene_name]["radius"] = radius
+
     def get_random_data_pair(self):
         # this will return a random data pair
 
@@ -92,6 +122,12 @@ class DonDataLoader(object):
         while not found:
             # choose data from one frame
             scene_name = self.get_random_scene_from_object_id()
+
+            # cache the values if they haven't been scene before
+            if scene_name not in self.centroid_and_radius:
+                self.set_centroid_and_radius_for_scene(scene_name)
+
+            # set the cached values if this scene has not been scene before
             frame_idx_a, frame_idx_b = self.get_frame_idx_pair_from_scene_name(scene_name)
 
             K = self.get_camera_intrinsics_matrix(scene_name)
@@ -105,4 +141,4 @@ class DonDataLoader(object):
         a_image_data = [rgb_a, depth_a, mask_a, pose_a]
         b_image_data = [rgb_b, depth_b, mask_b, pose_b]
 
-        return K, a_image_data, b_image_data
+        return K, a_image_data, b_image_data, scene_name
