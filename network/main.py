@@ -706,7 +706,8 @@ def keypoint_network(rgba,
       tf.expand_dims(tf.expand_dims(lr, 1), 1),
       [1, images.shape[1], images.shape[2], 1])
 
-  images = tf.concat([images, lrtiled], axis=3)
+  # ethan: removing this from the graph
+  # images = tf.concat([images, lrtiled], axis=3)
 
   mask = rgba[:, :, :, 3]
   mask = tf.cast(tf.greater(mask, tf.zeros_like(mask)), dtype=tf.float32)
@@ -953,7 +954,7 @@ def _default_hparams():
       loss_pose=0.2,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
       #loss_sep=0.0, # ethan
-      loss_sep=1.0,  # Seperation Loss.
+      loss_sep=10.0,  # Seperation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
       loss_lr=0.0,  # ethan
       # loss_lr=1.0,  # Orientation Loss.
@@ -966,7 +967,7 @@ def _default_hparams():
       remove_depth_start_pose=10000,
 
       # sep_delta=0.05,  # Seperation threshold.
-      sep_delta=0.001,  # ethan: seperation loss with our data. should be smaller I think
+      sep_delta=0.005,  # ethan: seperation loss with our data. should be smaller I think
       noise=0.1,  # Noise added during estimating rotation.
 
       learning_rate=1.0e-3,

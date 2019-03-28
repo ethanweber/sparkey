@@ -5,6 +5,7 @@ This file implements a class that can take data from the pytorch-dense-correspon
 import sys
 import os
 import random
+import numpy as np
 
 # python path needed for dense object nets
 data_loader_path = os.path.dirname(os.path.abspath(__file__))
@@ -65,17 +66,41 @@ class DonDataLoader(object):
         K = intrinsics.get_camera_matrix()
         return K
 
+    def mask_is_contained(self, mask):
+        """ return True if mask is fully contained in image. False otherwise
+        
+        inputs: mask as numpy array
+        """
+        
+        y_max, x_max = mask.shape # (height, width)
+        
+        # check top and bottom rows
+        for i in range(x_max):
+            if mask[0, i] != 0.0 or mask[y_max-1, i] != 0.0:
+                return False
+        # check left and right cols
+        for i in range(y_max):
+            if mask[i, 0] != 0.0 or mask[i, x_max-1] != 0.0:
+                return False
+        return True
+
     def get_random_data_pair(self):
         # this will return a random data pair
 
-        # choose data from one frame
-        scene_name = self.get_random_scene_from_object_id()
-        frame_idx_a, frame_idx_b = self.get_frame_idx_pair_from_scene_name(scene_name)
 
-        K = self.get_camera_intrinsics_matrix(scene_name)
+        found = False
+        while not found:
+            # choose data from one frame
+            scene_name = self.get_random_scene_from_object_id()
+            frame_idx_a, frame_idx_b = self.get_frame_idx_pair_from_scene_name(scene_name)
 
-        rgb_a, depth_a, mask_a, pose_a = self.dataset.get_rgbd_mask_pose(scene_name, frame_idx_a)
-        rgb_b, depth_b, mask_b, pose_b = self.dataset.get_rgbd_mask_pose(scene_name, frame_idx_b)
+            K = self.get_camera_intrinsics_matrix(scene_name)
+
+            rgb_a, depth_a, mask_a, pose_a = self.dataset.get_rgbd_mask_pose(scene_name, frame_idx_a)
+            rgb_b, depth_b, mask_b, pose_b = self.dataset.get_rgbd_mask_pose(scene_name, frame_idx_b)
+
+            # check that both masks are fully visible
+            found = self.mask_is_contained(np.array(mask_a)) and self.mask_is_contained(np.array(mask_b))
 
         a_image_data = [rgb_a, depth_a, mask_a, pose_a]
         b_image_data = [rgb_b, depth_b, mask_b, pose_b]
