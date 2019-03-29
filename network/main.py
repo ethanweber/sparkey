@@ -42,6 +42,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import datetime
 import shutil
+import cv2
 # ethan: make this import better
 import sys
 sys.path.append("../")
@@ -152,12 +153,6 @@ def create_input_fn(split, batch_size):
 
       fs["img0"].set_shape([vh, vw, 4])
       fs["img1"].set_shape([vh, vw, 4])
-
-      # fs["lr0"] = [fs["mv0"][0]]
-      # fs["lr1"] = [fs["mv1"][0]]
-
-      fs["lr0"] = tf.convert_to_tensor([fs["mv0"][0]])
-      fs["lr1"] = tf.convert_to_tensor([fs["mv1"][0]])
 
       return fs
 
@@ -555,52 +550,23 @@ def variance_loss(probmap, ranx, rany, uv):
   return tf.reduce_mean(tf.reduce_sum(diff, axis=[2, 3]))
 
 # ethan: created this because we know the depth
-def depth_loss(t, uvz, gt_depth, centroid, radius):
+def depth_loss(uvz, centroid, radius):
   """Computes the depth loss.
 
   Args:
-    t: the Transformer instance
     uvz: [batch, num_kp, 3]
-    gt_depth: [batch, 307200]
+    centroid: [batch, 1]
+    radius: [batch, 1]
 
   Returns:
     The depth loss.
   """
 
-  # reshape the map to an image. recall that we use images of size 128 x 128 though
-  # img_depth = tf.reshape(gt_depth, [-1, 480, 640])
-
-  # convert to image coordinates with correct dimensions
-  xyz = t.scale_normalized_coords_to_image_coords(uvz)
-
-  x = tf.math.floor(xyz[:, :, 0])
-  y = tf.math.floor(xyz[:, :, 1])
-  z = xyz[:, :, 2]
+  z = uvz[:, :, 2]
 
   error = tf.reduce_sum(
       tf.maximum(tf.square(z - centroid) - tf.square(radius), 0.0)
   )
-
-  # # todo: ethan, verify this is correct
-  # z_index = tf.dtypes.cast(
-  #     tf.clip_by_value(x + y*640, 0.0, 307200-1), 
-  #     tf.int32
-  # )
-
-  # gt_z_values = []
-  # # TODO(ethan): fix this batch calculation! should not set it here to 8!
-  # # for i in range(z.shape[0]):
-  # for i in range(8):
-  #     gt_z_values.append(
-  #         tf.gather(
-  #             gt_depth[i] / 1000.0,
-  #             z_index[i]
-  #         )
-  #     )
-      
-  # gt_z_values = tf.stack(gt_z_values)
-
-  # error = tf.losses.mean_squared_error(z, gt_z_values)
 
   return error
 
@@ -631,45 +597,43 @@ def dilated_cnn(images, num_filters, is_training):
   return net
 
 
-def orientation_network(images, num_filters, is_training):
-  """Constructs a network that infers the orientation of an object.
+# def orientation_network(images, num_filters, is_training):
+#   """Constructs a network that infers the orientation of an object.
 
-  Args:
-    images: [batch, h, w, 3] Input RGB images.
-    num_filters: The number of filters for all layers.
-    is_training: True if this function is called during training.
+#   Args:
+#     images: [batch, h, w, 3] Input RGB images.
+#     num_filters: The number of filters for all layers.
+#     is_training: True if this function is called during training.
 
-  Returns:
-    Output of the orientation network.
-  """
+#   Returns:
+#     Output of the orientation network.
+#   """
 
-  with tf.variable_scope("OrientationNetwork"):
-    net = dilated_cnn(images, num_filters, is_training)
+#   with tf.variable_scope("OrientationNetwork"):
+#     net = dilated_cnn(images, num_filters, is_training)
 
-    modules = 2
-    prob = slim.conv2d(net, 2, [3, 3], rate=1, activation_fn=None)
-    prob = tf.transpose(prob, [0, 3, 1, 2])
+#     modules = 2
+#     prob = slim.conv2d(net, 2, [3, 3], rate=1, activation_fn=None)
+#     prob = tf.transpose(prob, [0, 3, 1, 2])
 
-    prob = tf.reshape(prob, [-1, modules, vh * vw])
-    prob = tf.nn.softmax(prob)
-    ranx, rany = meshgrid(vh)
+#     prob = tf.reshape(prob, [-1, modules, vh * vw])
+#     prob = tf.nn.softmax(prob)
+#     ranx, rany = meshgrid(vh)
 
-    prob = tf.reshape(prob, [-1, 2, vh, vw])
+#     prob = tf.reshape(prob, [-1, 2, vh, vw])
 
-    sx = tf.reduce_sum(prob * ranx, axis=[2, 3])
-    sy = tf.reduce_sum(prob * rany, axis=[2, 3])  # -> batch x modules
+#     sx = tf.reduce_sum(prob * ranx, axis=[2, 3])
+#     sy = tf.reduce_sum(prob * rany, axis=[2, 3])  # -> batch x modules
 
-    out_xy = tf.reshape(tf.stack([sx, sy], -1), [-1, modules, 2])
+#     out_xy = tf.reshape(tf.stack([sx, sy], -1), [-1, modules, 2])
 
-  return out_xy
+#   return out_xy
 
 
 def keypoint_network(rgba,
                      num_filters,
                      num_kp,
-                     is_training,
-                     lr_gt=None,
-                     anneal=1):
+                     is_training):
   """Constructs our main keypoint network that predicts 3D keypoints.
 
   Args:
@@ -677,16 +641,10 @@ def keypoint_network(rgba,
     num_filters: The number of filters for all layers.
     num_kp: The number of keypoints.
     is_training: True if this function is called during training.
-    lr_gt: The groundtruth orientation flag used at the beginning of training.
-        Then we linearly anneal in the prediction.
-    anneal: A number between [0, 1] where 1 means using the ground-truth
-        orientation and 0 means using our estimate.
 
   Returns:
     uv: [batch, num_kp, 2] 2D locations of keypoints.
     z: [batch, num_kp] The depth of keypoints.
-    orient: [batch, 2, 2] Two 2D coordinates that correspond to [1, 0, 0] and
-        [-1, 0, 0] in object space.
     sill: The Sillhouette loss.
     variance: The variance loss.
     prob_viz: A visualization of all predicted keypoints.
@@ -696,23 +654,8 @@ def keypoint_network(rgba,
 
   images = rgba[:, :, :, :3]
 
-  # [batch, 1]
-  orient = orientation_network(images, num_filters * 0.5, is_training)
-
-  # [batch, 1]
-  lr_estimated = tf.maximum(0.0, tf.sign(orient[:, 0, :1] - orient[:, 1, :1]))
-
-  if lr_gt is None:
-    lr = lr_estimated
-  else:
-    lr_gt = tf.maximum(0.0, tf.sign(lr_gt[:, :1]))
-    lr = tf.round(lr_gt * anneal + lr_estimated * (1 - anneal))
-
-  lrtiled = tf.tile(
-      tf.expand_dims(tf.expand_dims(lr, 1), 1),
-      [1, images.shape[1], images.shape[2], 1])
-
   # ethan: removing this from the graph
+  # maybe add depth here?
   # images = tf.concat([images, lrtiled], axis=3)
 
   mask = rgba[:, :, :, 3]
@@ -756,7 +699,7 @@ def keypoint_network(rgba,
 
   variance = variance_loss(prob, ranx, rany, uv)
 
-  return uv, z, orient, sill, variance, prob_viz, prob_vizs
+  return uv, z, sill, variance, prob_viz, prob_vizs
 
 
 def model_fn(features, labels, mode, hparams):
@@ -783,37 +726,17 @@ def model_fn(features, labels, mode, hparams):
   loss_variance = 0
   loss_con = 0
   loss_sep = 0
-  loss_lr = 0
   loss_depth = 0 # ethan adding this because we have ground truth depth
 
   for i in range(2):
     with tf.variable_scope("KeypointNetwork", reuse=i > 0):
 
-      # anneal: 1 = using ground-truth, 0 = using our estimate orientation.
-      anneal = tf.to_float(hparams.lr_anneal_end - tf.train.get_global_step())
-      anneal = tf.clip_by_value(
-          anneal / (hparams.lr_anneal_end - hparams.lr_anneal_start), 0.0, 1.0)
-
-      uv, z, orient, sill, variance, viz[i], vizs[i] = keypoint_network(
+      uv, z, sill, variance, viz[i], vizs[i] = keypoint_network(
           features["img%d" % i],
           hparams.num_filters,
           hparams.num_kp,
-          is_training,
-          lr_gt=features["lr%d" % i],
-          anneal=anneal)
+          is_training)
 
-      # x-positive/negative axes (dominant direction).
-      xp_axis = tf.tile(
-          tf.constant([[[1.0, 0, 0, 1], [-1.0, 0, 0, 1]]]),
-          [tf.shape(orient)[0], 1, 1])
-
-      # [batch, 2, 4]  = [batch, 2, 4] x [batch, 4, 4]
-      xp = tf.matmul(xp_axis, mv[i])
-
-      # [batch, 2, 3]
-      xp = t.project(xp)
-
-      loss_lr += tf.losses.mean_squared_error(orient[:, :, :2], xp[:, :, :2])
       loss_variance += variance
       loss_sill += sill
 
@@ -831,20 +754,13 @@ def model_fn(features, labels, mode, hparams):
   pconf = tf.ones(
       [tf.shape(uv)[0], tf.shape(uv)[1]], dtype=tf.float32) / hparams.num_kp
 
-  depth_multiplier = tf.to_float(hparams.remove_depth_start_pose - tf.train.get_global_step())
-  depth_multiplier = tf.clip_by_value(
-    depth_multiplier / hparams.remove_depth_start_pose, 0.0, 1.0)
-  pose_multiplier = 1.0 - depth_multiplier
-
   for i in range(2):
     loss_con += consistency_loss(uvz_proj[i][:, :, :2], uvz[1 - i][:, :, :2],
                                  pconf)
     loss_sep += separation_loss(
         t.unproject(uvz[i])[:, :, :3], hparams.sep_delta)
     loss_depth += depth_loss(
-      t,
       uvz[i],
-      features["img%d_depth" % i],
       features["centroid"],
       features["radius"]
     )
@@ -855,11 +771,10 @@ def model_fn(features, labels, mode, hparams):
       hparams.noise)
 
   loss = (
-      hparams.loss_pose * angular*pose_multiplier +
+      hparams.loss_pose * angular +
       hparams.loss_con * loss_con +
-      hparams.loss_sep * loss_sep*pose_multiplier +
+      hparams.loss_sep * loss_sep +
       hparams.loss_sill * loss_sill +
-      hparams.loss_lr * loss_lr +
       hparams.loss_variance * loss_variance +
       hparams.loss_depth * loss_depth
   )
@@ -870,21 +785,25 @@ def model_fn(features, labels, mode, hparams):
   with tf.variable_scope("output"):
     tf.summary.image("0_img0", touint8(features["img0"][:, :, :, :3]))
     tf.summary.image("1_combined", viz[0])
-    for i in range(hparams.num_kp):
-      tf.summary.image("2_f%02d" % i, vizs[0][i])
+    tf.summary.image(
+      "2_predict",
+      tf.py_func(my_func, [
+        touint8(features["img0"][0, :, :, :3]), 
+        touint8(features["img1"][0, :, :, :3]), 
+        uvz[0][:1, :, :],
+        uvz[1][:1, :, :]], tf.uint8)
+    )
+    # for i in range(hparams.num_kp):
+    #   tf.summary.image("2_f%02d" % i, vizs[0][i])
 
   with tf.variable_scope("stats"):
-    tf.summary.scalar("anneal", anneal)
     tf.summary.scalar("closs", loss_con)
     tf.summary.scalar("seploss", loss_sep)
     tf.summary.scalar("angular", angular)
     tf.summary.scalar("chordal", chordal)
-    tf.summary.scalar("lrloss", loss_lr)
     tf.summary.scalar("sill", loss_sill)
     tf.summary.scalar("vloss", loss_variance)
     tf.summary.scalar("dloss", loss_depth)
-    tf.summary.scalar("pose_multiplier", pose_multiplier)
-    tf.summary.scalar("depth_multiplier", depth_multiplier)
 
   return {
       "loss": loss,
@@ -901,6 +820,43 @@ def model_fn(features, labels, mode, hparams):
       }
   }
 
+def rgb(minimum, maximum, value):
+  minimum, maximum = float(minimum), float(maximum)
+  ratio = 2 * (value-minimum) / (maximum - minimum)
+  b = int(max(0, 255*(1 - ratio)))
+  r = int(max(0, 255*(ratio - 1)))
+  g = 255 - b - r
+  return r, g, b
+
+# ethan: need to figure out how to set num_kp based on hyperparameters
+def my_func(img0, img1, uvz0, uvz1, num_kp=10):
+  # return np.expand_dims(orig, axis=0)
+  values = np.linspace(0, 1.0, num_kp)
+  vw, vh = 128, 128
+
+  img0 = np.concatenate((img0, np.ones_like(img0[:, :, :1])), axis=2)
+  # draw on the image
+  uvz0_reshaped = uvz0.reshape(num_kp, 3)
+  for j in range(num_kp):
+    u, v = uvz0_reshaped[j, :2]
+    x = (min(max(u, -1), 1) * vw / 2 + vw / 2) - 0.5
+    y = vh - 0.5 - (min(max(v, -1), 1) * vh / 2 + vh / 2)
+    x = int(round(x))
+    y = int(round(y))
+    img0 = cv2.circle(img0, (x, y), 2, rgb(0.0, 1.0, values[j]), -1)
+
+  img1 = np.concatenate((img1, np.ones_like(img1[:, :, :1])), axis=2)
+  # draw on the image
+  uvz1_reshaped = uvz1.reshape(num_kp, 3)
+  for j in range(num_kp):
+    u, v = uvz1_reshaped[j, :2]
+    x = (min(max(u, -1), 1) * vw / 2 + vw / 2) - 0.5
+    y = vh - 0.5 - (min(max(v, -1), 1) * vh / 2 + vh / 2)
+    x = int(round(x))
+    y = int(round(y))
+    img1 = cv2.circle(img1, (x, y), 2, rgb(0.0, 1.0, values[j]), -1)
+
+  return np.expand_dims(np.hstack([img0, img1]), axis=0)[:,:,:,:3]
 
 def predict(input_folder, hparams):
   """Predicts keypoints on all images in input_folder."""
@@ -958,29 +914,18 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      # loss_pose=0.0, # ethan
-      loss_pose=0.2,  # Pose Loss.
+      loss_pose=1.0,  # Pose Loss.
       loss_con=1.0,  # Multiview consistency Loss.
-      #loss_sep=0.0, # ethan
       loss_sep=10.0,  # Seperation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
-      loss_lr=0.0,  # ethan
-      # loss_lr=1.0,  # Orientation Loss.
-      # loss_variance=0.0,  # ethan
       loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
-      # ethan: added this because we have gt depth
-      # loss_depth=0.0,
       loss_depth=1.0, # Depth Loss
-      # when to remove depth from loss
-      remove_depth_start_pose=10000,
 
       # sep_delta=0.05,  # Seperation threshold.
-      sep_delta=0.005,  # ethan: seperation loss with our data. should be smaller I think
+      sep_delta=0.001,  # ethan: seperation loss with our data. should be smaller I think
       noise=0.1,  # Noise added during estimating rotation.
 
       learning_rate=1.0e-3,
-      lr_anneal_start=30000,  # When to anneal in the orientation prediction.
-      lr_anneal_end=60000,  # When to use the prediction completely.
   )
   if FLAGS.hparams:
     hparams = hparams.parse(FLAGS.hparams)

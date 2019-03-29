@@ -58,6 +58,7 @@ conda install -c conda-forge opencv
 conda install -c open3d-admin open3d
 conda install -c anaconda tensorflow-gpu
 conda install -c anaconda scipy
+pip install pillow
 
 # dependencies for the server
 conda install -c anaconda flask

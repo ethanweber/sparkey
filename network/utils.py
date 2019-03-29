@@ -218,6 +218,8 @@ def draw_circle(rgb, u, v, col, r):
     r: Radius.
   """
 
+  print(col)
+
   ir = int(math.ceil(r))
   for i in range(-ir-1, ir+2):
     for j in range(-ir-1, ir+2):
@@ -238,7 +240,6 @@ def draw_circle(rgb, u, v, col, r):
         if t > 0:
           # t = t ** 0.3
           rgb[nv, nu, :] = col * t + rgb[nv, nu, :] * (1-t)
-
 
 def draw_ndc_points(rgb, xy, cols):
   """Draws keypoints onto an input image.
