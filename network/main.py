@@ -854,7 +854,7 @@ def my_func(img0, img1, uvz0, uvz1, num_kp=10):
     y = vh - 0.5 - (min(max(v, -1), 1) * vh / 2 + vh / 2)
     x = int(round(x))
     y = int(round(y))
-    img1 = cv2.circle(img1, (x, y), 2, rgb(0.0, 1.0, values[j]), -1)
+    img1 = cv2.circle(img1, (x, y), 3, rgb(0.0, 1.0, values[j]), -1)
 
   return np.expand_dims(np.hstack([img0, img1]), axis=0)[:,:,:,:3]
 
@@ -914,9 +914,9 @@ def _default_hparams():
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
 
-      loss_pose=1.0,  # Pose Loss.
-      loss_con=1.0,  # Multiview consistency Loss.
-      loss_sep=10.0,  # Seperation Loss.
+      loss_pose=0.5,  # Pose Loss.
+      loss_con=10.0,  # Multiview consistency Loss.
+      loss_sep=5.0,  # Seperation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
       loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
       loss_depth=1.0, # Depth Loss

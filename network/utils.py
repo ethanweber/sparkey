@@ -218,8 +218,6 @@ def draw_circle(rgb, u, v, col, r):
     r: Radius.
   """
 
-  print(col)
-
   ir = int(math.ceil(r))
   for i in range(-ir-1, ir+2):
     for j in range(-ir-1, ir+2):
