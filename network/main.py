@@ -44,16 +44,9 @@ import tensorflow.contrib.slim as slim
 import datetime
 import shutil
 import cv2
-# ethan: make this import better
 import sys
 sys.path.append("../")
-# sys.path.append("../models/research/")
-sys.path.append("../models/research/slim/")
 import network.utils as utils
-# from models.research.deeplab import model
-# from models.research.deeplab import common
-from nets import nets_factory
-from preprocessing import preprocessing_factory
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -591,9 +584,7 @@ def dilated_cnn(images, num_filters, is_training):
   Returns:
     Output of this dilated CNN.
   """
-  #ethan: doesn't images have a 4th channeL?
-
-  # ------------------- previous code---------------------------
+  
   net = images
 
   with slim.arg_scope(
@@ -604,161 +595,7 @@ def dilated_cnn(images, num_filters, is_training):
     for i, r in enumerate([1, 1, 2, 4, 8, 16, 1, 2, 4, 8, 16, 1]):
       net = slim.conv2d(net, num_filters, [3, 3], rate=r, scope="dconv%d" % i)
   
-  print(net)
   return net
-  # ------------------- previous code---------------------------
-
-  # ---------- code for segmentation -------------
-  # crop_size = [128, 128]
-  # outputs_to_num_classes = {'semantic': 20}
-
-  # model_options = common.ModelOptions(outputs_to_num_classes,
-  #   crop_size=crop_size,
-  #   atrous_rates=[6, 12, 18],
-  #   output_stride=16)._replace(
-  #     decoder_output_stride=[4],
-  #     model_variant="xception_65")
-
-  # outputs_to_scales_to_logits = model.multi_scale_logits(
-  #   images,
-  #   model_options,
-  #   image_pyramid=[1.0])
-
-  # labels = outputs_to_scales_to_logits['semantic']['merged_logits']
-  # logits = tf.image.resize_bilinear(
-  #   labels,
-  #   [128, 128],
-  #   align_corners=True)
-
-  # net = logits
-
-  # might need to do some normalization, etc.?
-  # def touint8(img):
-  #   return tf.cast(img * 255.0, tf.uint8)
-  # rgb_images = touint8(images[:, :, :, :3])
-
-  # features, end_points = model.extract_features(
-  #   images,
-  #   model_options,
-  #   is_training=is_training)
-
-  # features = model.refine_by_decoder(
-  #       features,
-  #       end_points,
-  #       crop_size=model_options.crop_size,
-  #       decoder_output_stride=model_options.decoder_output_stride,
-  #       decoder_use_separable_conv=model_options.decoder_use_separable_conv,
-  #       model_variant=model_options.model_variant,
-  #       is_training=is_training,
-  #       use_bounded_activation=model_options.use_bounded_activation)
-
-  # net = features
-
-  # print(net)
-
-
-  # return net
-  # ---------- code for segmentation -------------
-
-
-  # def touint8(img):
-  #   return tf.cast(img * 255.0, tf.float32)
-  # rgb_images = touint8(images[:, :, :, :3])
-
-  # image_preprocessing_fn = preprocessing_factory.get_preprocessing(
-  #   'resnet_v1_50',
-  #   is_training=True)
-
-  # # rgb_images = image_preprocessing_fn(rgb_images, 128, 128)
-  # rgb_images = tf.map_fn(lambda x: image_preprocessing_fn(x, 128, 128), (rgb_images))
-
-  # network_fn = nets_factory.get_network_fn(
-  #       'resnet_v1_50',
-  #       num_classes=10,
-  #       is_training=True)
-
-  # print(rgb_images)
-
-  # logits, end_points = network_fn(rgb_images)
-  
-  # print(end_points['KeypointNetwork/resnet_v1_50/block4/unit_2/bottleneck_v1/conv1'])
-
-  # layer = end_points['KeypointNetwork/resnet_v1_50/block4/unit_2/bottleneck_v1/conv1']
-
-  # layer = tf.image.resize_bilinear(
-  #   layer,
-  #   [128, 128])
-
-  # return layer
-
-  # print(net)
-
-  # func = slim.nets.resnet_v2.resnet_v2_101
-  # arg_scope = slim.nets.resnet_v2.resnet_arg_scope(weight_decay=0.0)
-  # with slim.arg_scope(arg_scope):
-
-  # padding = "SAME"
-  # scope = None
-  # inputs = images
-  # print(inputs)
-  # with tf.variable_scope(scope, 'MobilenetV1', [inputs], reuse=None) as scope:
-  #   with slim.arg_scope(
-  #     [slim.batch_norm, slim.dropout],
-  #     is_training=is_training):
-  #       net, end_points = mobilenet_v1_base(
-  #         inputs,
-  #         final_endpoint='Conv2d_13_pointwise',
-  #         scope=scope)
-  #       print(net)
-  #       # get back to correct dimension
-  #       net = slim.conv2d(net, num_filters, [3, 3], rate=1, scope="end_conv")
-  #       print(net)
-
-  # images = net
-  # net, end_points = resnet_v2.resnet_v2_50(
-  #   images,
-  #   is_training=is_training)
-  # print(net)
-  # print()
-
-  # val = tf.nn.conv2d_transpose(net, [3, 3, 2048, 512], [512], 1)
-  # print(val)
-
-
-  # return net
-
-
-# def orientation_network(images, num_filters, is_training):
-#   """Constructs a network that infers the orientation of an object.
-
-#   Args:
-#     images: [batch, h, w, 3] Input RGB images.
-#     num_filters: The number of filters for all layers.
-#     is_training: True if this function is called during training.
-
-#   Returns:
-#     Output of the orientation network.
-#   """
-
-#   with tf.variable_scope("OrientationNetwork"):
-#     net = dilated_cnn(images, num_filters, is_training)
-
-#     modules = 2
-#     prob = slim.conv2d(net, 2, [3, 3], rate=1, activation_fn=None)
-#     prob = tf.transpose(prob, [0, 3, 1, 2])
-
-#     prob = tf.reshape(prob, [-1, modules, vh * vw])
-#     prob = tf.nn.softmax(prob)
-#     ranx, rany = meshgrid(vh)
-
-#     prob = tf.reshape(prob, [-1, 2, vh, vw])
-
-#     sx = tf.reduce_sum(prob * ranx, axis=[2, 3])
-#     sy = tf.reduce_sum(prob * rany, axis=[2, 3])  # -> batch x modules
-
-#     out_xy = tf.reshape(tf.stack([sx, sy], -1), [-1, modules, 2])
-
-#   return out_xy
 
 
 def keypoint_network(rgba,
@@ -795,19 +632,13 @@ def keypoint_network(rgba,
   net = dilated_cnn(images, num_filters, is_training)
 
   # The probability distribution map.
-  # prob = slim.conv2d(
-  #     net, num_filters, [3, 3], rate=1, scope="conv_xy_pre", activation_fn=None)
   prob = slim.conv2d(
       net, num_kp, [3, 3], rate=1, scope="conv_xy", activation_fn=None)
 
-  # ethan: figure out what our fixed camera distance might be. keypointnet used -30
-  # We added the  fixed camera distance as a bias.
-  # z = -30 + slim.conv2d(
-  #     net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
-  # z = slim.conv2d(
-  #   net, num_filters, [3, 3], rate=1, scope="conv_z_pre", activation_fn=None)
+  # Fixed camera distance as a bias.
+  fixed_camera_distance = 0.0 # -30
   z = slim.conv2d(
-    net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
+    net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None) + fixed_camera_distance
 
   prob = tf.transpose(prob, [0, 3, 1, 2])
   z = tf.transpose(z, [0, 3, 1, 2])
@@ -922,11 +753,12 @@ def model_fn(features, labels, mode, hparams):
     tf.summary.image("1_combined", viz[0])
     tf.summary.image(
       "2_predict",
-      tf.py_func(my_func, [
+      tf.py_func(my_drawing_func, [
         touint8(features["img0"][0, :, :, :3]), 
         touint8(features["img1"][0, :, :, :3]), 
         uvz[0][:1, :, :],
-        uvz[1][:1, :, :]], tf.uint8)
+        uvz[1][:1, :, :],
+        hparams.num_kp], tf.uint8)
     )
     # for i in range(hparams.num_kp):
     #   tf.summary.image("2_f%02d" % i, vizs[0][i])
@@ -964,7 +796,7 @@ def rgb(minimum, maximum, value):
   return r, g, b
 
 # ethan: need to figure out how to set num_kp based on hyperparameters
-def my_func(img0, img1, uvz0, uvz1, num_kp=10):
+def my_drawing_func(img0, img1, uvz0, uvz1, num_kp):
   # return np.expand_dims(orig, axis=0)
   values = np.linspace(0, 1.0, num_kp)
   vw, vh = 128, 128
@@ -978,7 +810,7 @@ def my_func(img0, img1, uvz0, uvz1, num_kp=10):
     y = vh - 0.5 - (min(max(v, -1), 1) * vh / 2 + vh / 2)
     x = int(round(x))
     y = int(round(y))
-    img0 = cv2.circle(img0, (x, y), 2, rgb(0.0, 1.0, values[j]), -1)
+    img0 = cv2.circle(img0, (x, y), 3, rgb(0.0, 1.0, values[j]), -1)
 
   img1 = np.concatenate((img1, np.ones_like(img1[:, :, :1])), axis=2)
   # draw on the image
@@ -1058,7 +890,7 @@ def _default_hparams():
       noise=0.0,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,
   )
-  
+
   if FLAGS.hparams:
     hparams = hparams.parse(FLAGS.hparams)
   return hparams
