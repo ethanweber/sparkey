@@ -40,13 +40,20 @@ from scipy import misc
 import sys
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
+
 import datetime
 import shutil
 import cv2
 # ethan: make this import better
 import sys
 sys.path.append("../")
+# sys.path.append("../models/research/")
+sys.path.append("../models/research/slim/")
 import network.utils as utils
+# from models.research.deeplab import model
+# from models.research.deeplab import common
+from nets import nets_factory
+from preprocessing import preprocessing_factory
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -60,6 +67,8 @@ tf.app.flags.DEFINE_string(
     "",
     "Input folder containing images")
 tf.app.flags.DEFINE_string("model_dir", None, "Estimator model_dir")
+#ethan: adding for transfer learning
+tf.app.flags.DEFINE_string("conv_checkpoint_path", None, "Convolution base checkpoint path.")
 tf.app.flags.DEFINE_string(
     "dset",
     "",
@@ -584,6 +593,7 @@ def dilated_cnn(images, num_filters, is_training):
   """
   #ethan: doesn't images have a 4th channeL?
 
+  # ------------------- previous code---------------------------
   net = images
 
   with slim.arg_scope(
@@ -593,8 +603,129 @@ def dilated_cnn(images, num_filters, is_training):
       normalizer_params={"is_training": is_training}):
     for i, r in enumerate([1, 1, 2, 4, 8, 16, 1, 2, 4, 8, 16, 1]):
       net = slim.conv2d(net, num_filters, [3, 3], rate=r, scope="dconv%d" % i)
-
+  
+  print(net)
   return net
+  # ------------------- previous code---------------------------
+
+  # ---------- code for segmentation -------------
+  # crop_size = [128, 128]
+  # outputs_to_num_classes = {'semantic': 20}
+
+  # model_options = common.ModelOptions(outputs_to_num_classes,
+  #   crop_size=crop_size,
+  #   atrous_rates=[6, 12, 18],
+  #   output_stride=16)._replace(
+  #     decoder_output_stride=[4],
+  #     model_variant="xception_65")
+
+  # outputs_to_scales_to_logits = model.multi_scale_logits(
+  #   images,
+  #   model_options,
+  #   image_pyramid=[1.0])
+
+  # labels = outputs_to_scales_to_logits['semantic']['merged_logits']
+  # logits = tf.image.resize_bilinear(
+  #   labels,
+  #   [128, 128],
+  #   align_corners=True)
+
+  # net = logits
+
+  # might need to do some normalization, etc.?
+  # def touint8(img):
+  #   return tf.cast(img * 255.0, tf.uint8)
+  # rgb_images = touint8(images[:, :, :, :3])
+
+  # features, end_points = model.extract_features(
+  #   images,
+  #   model_options,
+  #   is_training=is_training)
+
+  # features = model.refine_by_decoder(
+  #       features,
+  #       end_points,
+  #       crop_size=model_options.crop_size,
+  #       decoder_output_stride=model_options.decoder_output_stride,
+  #       decoder_use_separable_conv=model_options.decoder_use_separable_conv,
+  #       model_variant=model_options.model_variant,
+  #       is_training=is_training,
+  #       use_bounded_activation=model_options.use_bounded_activation)
+
+  # net = features
+
+  # print(net)
+
+
+  # return net
+  # ---------- code for segmentation -------------
+
+
+  # def touint8(img):
+  #   return tf.cast(img * 255.0, tf.float32)
+  # rgb_images = touint8(images[:, :, :, :3])
+
+  # image_preprocessing_fn = preprocessing_factory.get_preprocessing(
+  #   'resnet_v1_50',
+  #   is_training=True)
+
+  # # rgb_images = image_preprocessing_fn(rgb_images, 128, 128)
+  # rgb_images = tf.map_fn(lambda x: image_preprocessing_fn(x, 128, 128), (rgb_images))
+
+  # network_fn = nets_factory.get_network_fn(
+  #       'resnet_v1_50',
+  #       num_classes=10,
+  #       is_training=True)
+
+  # print(rgb_images)
+
+  # logits, end_points = network_fn(rgb_images)
+  
+  # print(end_points['KeypointNetwork/resnet_v1_50/block4/unit_2/bottleneck_v1/conv1'])
+
+  # layer = end_points['KeypointNetwork/resnet_v1_50/block4/unit_2/bottleneck_v1/conv1']
+
+  # layer = tf.image.resize_bilinear(
+  #   layer,
+  #   [128, 128])
+
+  # return layer
+
+  # print(net)
+
+  # func = slim.nets.resnet_v2.resnet_v2_101
+  # arg_scope = slim.nets.resnet_v2.resnet_arg_scope(weight_decay=0.0)
+  # with slim.arg_scope(arg_scope):
+
+  # padding = "SAME"
+  # scope = None
+  # inputs = images
+  # print(inputs)
+  # with tf.variable_scope(scope, 'MobilenetV1', [inputs], reuse=None) as scope:
+  #   with slim.arg_scope(
+  #     [slim.batch_norm, slim.dropout],
+  #     is_training=is_training):
+  #       net, end_points = mobilenet_v1_base(
+  #         inputs,
+  #         final_endpoint='Conv2d_13_pointwise',
+  #         scope=scope)
+  #       print(net)
+  #       # get back to correct dimension
+  #       net = slim.conv2d(net, num_filters, [3, 3], rate=1, scope="end_conv")
+  #       print(net)
+
+  # images = net
+  # net, end_points = resnet_v2.resnet_v2_50(
+  #   images,
+  #   is_training=is_training)
+  # print(net)
+  # print()
+
+  # val = tf.nn.conv2d_transpose(net, [3, 3, 2048, 512], [512], 1)
+  # print(val)
+
+
+  # return net
 
 
 # def orientation_network(images, num_filters, is_training):
@@ -664,6 +795,8 @@ def keypoint_network(rgba,
   net = dilated_cnn(images, num_filters, is_training)
 
   # The probability distribution map.
+  # prob = slim.conv2d(
+  #     net, num_filters, [3, 3], rate=1, scope="conv_xy_pre", activation_fn=None)
   prob = slim.conv2d(
       net, num_kp, [3, 3], rate=1, scope="conv_xy", activation_fn=None)
 
@@ -671,6 +804,8 @@ def keypoint_network(rgba,
   # We added the  fixed camera distance as a bias.
   # z = -30 + slim.conv2d(
   #     net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
+  # z = slim.conv2d(
+  #   net, num_filters, [3, 3], rate=1, scope="conv_z_pre", activation_fn=None)
   z = slim.conv2d(
     net, num_kp, [3, 3], rate=1, scope="conv_z", activation_fn=None)
 
@@ -913,20 +1048,17 @@ def _default_hparams():
   hparams = tf.contrib.training.HParams(
       num_filters=64,  # Number of filters.
       num_kp=10,  # Numer of keypoints.
-
-      loss_pose=0.5,  # Pose Loss.
+      loss_pose=1.0,  # Pose Loss.
       loss_con=10.0,  # Multiview consistency Loss.
       loss_sep=5.0,  # Seperation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
       loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
       loss_depth=1.0, # Depth Loss
-
-      # sep_delta=0.05,  # Seperation threshold.
-      sep_delta=0.001,  # ethan: seperation loss with our data. should be smaller I think
-      noise=0.1,  # Noise added during estimating rotation.
-
+      sep_delta=0.001,  # Separation Loss (depends on world coordinates).
+      noise=0.0,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,
   )
+  
   if FLAGS.hparams:
     hparams = hparams.parse(FLAGS.hparams)
   return hparams
