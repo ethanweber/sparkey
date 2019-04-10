@@ -908,7 +908,7 @@ def main(argv):
     # ethan: if no FLAGS.model_dir, then create a new one with a timestamp
     if FLAGS.model_dir is None:
       # get the current timestamp
-      timestamp = datetime.datetime.now().strftime("%y-%m-%d_%I:%M:%S")
+      timestamp = datetime.datetime.now().strftime("%y-%m-%d_%I-%M-%S")
       current_path = os.path.dirname(os.path.abspath(__file__))
       experiments_path = os.path.join(current_path, "../experiments")
       
