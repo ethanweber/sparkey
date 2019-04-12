@@ -30,7 +30,7 @@ class DonDataLoader(object):
     """
     Data loader class that takes from the pytorch-dense-correspondence dataset.
     """
-    def __init__(self, config_filename='caterpillar_only.yaml'):
+    def __init__(self, config_filename='shoes_all.yaml'):
 
         with HiddenPrints():
         
@@ -97,13 +97,17 @@ class DonDataLoader(object):
         global_min_depth = float("inf")
         global_max_depth = 0.0
         for frame in all_frames:
-            rgb_a, depth_a, mask_a, pose_a = self.dataset.get_rgbd_mask_pose(scene_name, frame)
-            masked_depth = np.array(mask_a)*np.array(depth_a)
-            min_depth = masked_depth[masked_depth > 0].min() / 1000.0
-            max_depth = masked_depth[masked_depth > 0].max() / 1000.0
-            
-            global_min_depth = min(global_min_depth, min_depth)
-            global_max_depth = max(global_max_depth, max_depth)
+            # ethan: this might be fragile, so come back to it
+            try:
+                rgb_a, depth_a, mask_a, pose_a = self.dataset.get_rgbd_mask_pose(scene_name, frame)
+                masked_depth = np.array(mask_a)*np.array(depth_a)
+                min_depth = masked_depth[masked_depth > 0].min() / 1000.0
+                max_depth = masked_depth[masked_depth > 0].max() / 1000.0
+                
+                global_min_depth = min(global_min_depth, min_depth)
+                global_max_depth = max(global_max_depth, max_depth)
+            except:
+                pass
         z_min = global_min_depth
         z_max = global_max_depth
 

@@ -41,7 +41,9 @@ git submodule update --init --recursive
 
 # use dense object nets to download data
 cd pytorch-dense-correspondence-private
-python config/download_pdc_data.py config/dense_correspondence/dataset/composite/caterpillar_only.yaml
+mkdir data
+cd data/
+python ../config/download_pdc_data.py config/dense_correspondence/dataset/composite/caterpillar_only.yaml
 # move the pdc folder to pytorch-dense-correspondence/data
 mkdir data
 mv pdc/ data/

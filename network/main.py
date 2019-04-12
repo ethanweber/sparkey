@@ -825,8 +825,16 @@ def my_drawing_func(img0, img1, uvz0, uvz1, num_kp):
 
   return np.expand_dims(np.hstack([img0, img1]), axis=0)[:,:,:,:3]
 
-def predict(input_folder, hparams):
+def predict(input_folder, hparams, only_uvz_sess_img=False, num_kp=None, model_dir=None, latest_filename=None):
   """Predicts keypoints on all images in input_folder."""
+
+  # update hparams if specified
+  if hparams is None:
+    hparams = tf.contrib.training.HParams(
+      num_filters=64,
+      num_kp=10)
+  if num_kp is not None:
+    hparams.num_kp = num_kp
 
   cols = plt.cm.get_cmap("rainbow")(
       np.linspace(0, 1.0, hparams.num_kp))[:, :4]
@@ -843,18 +851,30 @@ def predict(input_folder, hparams):
 
   sess = tf.Session()
   saver = tf.train.Saver()
-  
-  # ethan: add a paramter to set the checkpoint
-  # create the file if FLAGS.latest_filename isn't None. rewrite it if it already exists
-  if FLAGS.latest_filename is not None:
-    latest_filename_path = os.path.join(FLAGS.model_dir, FLAGS.latest_filename)
-    f = open(latest_filename_path, "w")
-    f.write("model_checkpoint_path: \"{}\"".format(FLAGS.latest_filename))
-    f.close()
-  ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir, latest_filename=FLAGS.latest_filename)
+
+  # override the FLAGS in this case
+  if model_dir:
+    if latest_filename is not None:
+      latest_filename_path = os.path.join(model_dir, latest_filename)
+      f = open(latest_filename_path, "w")
+      f.write("model_checkpoint_path: \"{}\"".format(latest_filename))
+      f.close()
+    ckpt = tf.train.get_checkpoint_state(model_dir, latest_filename=latest_filename)
+  else:
+    # ethan: add a paramter to set the checkpoint
+    # create the file if FLAGS.latest_filename isn't None. rewrite it if it already exists
+    if FLAGS.latest_filename is not None:
+      latest_filename_path = os.path.join(FLAGS.model_dir, FLAGS.latest_filename)
+      f = open(latest_filename_path, "w")
+      f.write("model_checkpoint_path: \"{}\"".format(FLAGS.latest_filename))
+      f.close()
+    ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir, latest_filename=FLAGS.latest_filename)
 
   print("loading model: ", ckpt.model_checkpoint_path)
   saver.restore(sess, ckpt.model_checkpoint_path)
+
+  if only_uvz_sess_img is not None:
+    return uvz, sess, img
 
   files = [x for x in os.listdir(input_folder)
            if x[-3:] in ["jpg", "png"]]
