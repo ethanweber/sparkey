@@ -490,7 +490,7 @@ def separation_loss(xyz, delta):
     delta: A separation threshold. Incur 0 cost if the distance >= delta.
 
   Returns:
-    The seperation loss.
+    The separation loss.
   """
 
   num_kp = tf.shape(xyz)[1]
@@ -902,10 +902,10 @@ def _default_hparams():
       num_kp=10,  # Numer of keypoints.
       loss_pose=1.0,  # Pose Loss.
       loss_con=10.0,  # Multiview consistency Loss.
-      loss_sep=100.0,  # Seperation Loss.
+      loss_sep=100.0,  # Separation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
       loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
-      loss_depth=1.0, # Depth Loss
+      loss_depth=0.0, # Depth Loss
       sep_delta=0.001,  # Separation Loss (depends on world coordinates).
       noise=0.001,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,
