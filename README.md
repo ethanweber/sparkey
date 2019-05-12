@@ -1,6 +1,6 @@
-# occnet
+# sparkey
 
-Automatic Keypoint Discovery with Occlusions
+SparKey: Sparse Keypoint Discovery for Robotic Manipulation
 
 # Structure
 
