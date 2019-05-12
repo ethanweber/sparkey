@@ -597,11 +597,22 @@ def dilated_cnn(images, num_filters, is_training):
   
   return net
 
+def occlusion_loss(images, loss_occ=0.0):
+  """Modify the images tensor to zero out some of the pixels.
+  Args:
+    images: [batch, h, w, 3] Input RGB images.
+    loss_occ: scaler to specify magnitude of modications
+  Returns:
+    Output of size [batch, h, w, 3] with now occluded regions.
+  """
+  return images
+
 
 def keypoint_network(rgba,
                      num_filters,
                      num_kp,
-                     is_training):
+                     is_training,
+                     loss_occ=0.0):
   """Constructs our main keypoint network that predicts 3D keypoints.
 
   Args:
@@ -621,6 +632,9 @@ def keypoint_network(rgba,
   """
 
   images = rgba[:, :, :, :3]
+
+  # TODO(ethan): add occlusion loss here
+  images = occlusion_loss(images, loss_occ=loss_occ)
 
   # ethan: removing this from the graph
   # maybe add depth here?
@@ -701,7 +715,8 @@ def model_fn(features, labels, mode, hparams):
           features["img%d" % i],
           hparams.num_filters,
           hparams.num_kp,
-          is_training)
+          is_training,
+          loss_occ=hparams.loss_occ)
 
       loss_variance += variance
       loss_sill += sill
@@ -843,7 +858,7 @@ def predict(input_folder, hparams, only_uvz_sess_img=False, num_kp=None, model_d
 
   with tf.variable_scope("KeypointNetwork"):
     ret = keypoint_network(
-        img, hparams.num_filters, hparams.num_kp, False)
+        img, hparams.num_filters, hparams.num_kp, False, loss_occ=0.0)
 
   uv = tf.reshape(ret[0], [-1, hparams.num_kp, 2])
   z = tf.reshape(ret[1], [-1, hparams.num_kp, 1])
@@ -909,6 +924,7 @@ def _default_hparams():
       sep_delta=0.001,  # Separation Loss (depends on world coordinates).
       noise=0.01,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,
+      loss_occ=1.0, # 1.0 if using synthetic occlusions. 0.0 otherwise
   )
 
   if FLAGS.hparams:
