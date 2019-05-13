@@ -967,7 +967,7 @@ def _default_hparams():
       loss_sep=100.0,  # Separation Loss.
       loss_sill=2.0,  # Sillhouette Loss.
       loss_variance=0.5, # Variance Loss (part of Sillhouette loss).
-      loss_depth=0.0, # Depth Loss
+      loss_depth=1.0, # Depth Loss
       sep_delta=0.001,  # Separation Loss (depends on world coordinates).
       noise=0.01,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,

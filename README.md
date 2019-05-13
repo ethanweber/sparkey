@@ -2,6 +2,9 @@
 
 SparKey: Sparse Keypoint Discovery for Robotic Manipulation
 
+> Note that this research was done with the Robot Locomotion Group at MIT. Also note that some references to "occnet" still exist, which was the previous name of this repo.
+> We are in the process of changing all references to the name SparKey. Some portions of the documentation may also be slightly outdated.
+
 # Structure
 
 - [data/](data)
