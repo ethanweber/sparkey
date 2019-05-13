@@ -36,6 +36,7 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import random
 from scipy import misc
 import sys
 import tensorflow as tf
@@ -597,15 +598,60 @@ def dilated_cnn(images, num_filters, is_training):
   
   return net
 
-def occlusion_loss(images, loss_occ=0.0):
-  """Modify the images tensor to zero out some of the pixels.
-  Args:
-    images: [batch, h, w, 3] Input RGB images.
-    loss_occ: scaler to specify magnitude of modications
-  Returns:
-    Output of size [batch, h, w, 3] with now occluded regions.
-  """
-  return images
+def get_box_from_mask(mask):
+    # returns the bounding given a mask
+    # print(mask.shape)
+    rows = np.any(mask, axis=1)
+    cols = np.any(mask, axis=0)
+    ymin, ymax = np.where(rows)[0][[0, -1]]
+    xmin, xmax = np.where(cols)[0][[0, -1]]
+    x, y, w, h = int(xmin), int(ymin), int(xmax-xmin), int(ymax-ymin)
+    box = [x,y,w,h]
+    return box
+
+def get_box_pieces(box, num_cols=2, num_rows=2):
+    # returns array of bounding boxes
+    num_cols = 2
+    num_rows = 2
+    x,y,w,h = box
+    x_vals = np.linspace(x,x+w, num_cols + 1)
+    col_size = w // num_cols
+    y_vals = np.linspace(y,y+h, num_rows + 1)
+    row_size = h // num_rows
+    
+    boxes = []
+    for c in x_vals[:-1]:
+        for r in y_vals[:-1]:
+            current_box = [int(c), int(r), int(col_size), int(row_size)]
+            boxes.append(current_box)
+        
+    return boxes
+
+def get_numpy_mask_from_box(box):
+    mask = np.zeros((128,128))
+    x,y,w,h = box
+    mask[y:y+h,x:x+w] = 1
+    mask = 1 - mask
+    return mask.astype("uint8")
+
+def occlusion_loss(images, mask, loss_occ=0.0):
+    new_images = images.copy()
+    for i in range(len(images)):
+        # with some probability, we will not use an occlusion
+        if random.uniform(0, 1) >= loss_occ:
+            pass
+        else:
+            try:
+              box = get_box_from_mask(mask[i])
+              boxes = get_box_pieces(box)
+              box_index = random.randint(0, len(boxes)-1)
+              used_mask = get_numpy_mask_from_box(boxes[box_index])
+              new_images[i][:,:,0] *= used_mask
+              new_images[i][:,:,1] *= used_mask
+              new_images[i][:,:,2] *= used_mask
+            except:
+              pass
+    return new_images.astype("float32")
 
 
 def keypoint_network(rgba,
@@ -633,15 +679,16 @@ def keypoint_network(rgba,
 
   images = rgba[:, :, :, :3]
 
-  # TODO(ethan): add occlusion loss here
-  images = occlusion_loss(images, loss_occ=loss_occ)
-
   # ethan: removing this from the graph
   # maybe add depth here?
   # images = tf.concat([images, lrtiled], axis=3)
 
   mask = rgba[:, :, :, 3]
   mask = tf.cast(tf.greater(mask, tf.zeros_like(mask)), dtype=tf.float32)
+
+  # occlusion loss
+  images = tf.py_func(occlusion_loss, [images, mask, loss_occ], tf.float32)
+  images.set_shape([None, 128, 128, 3])
 
   net = dilated_cnn(images, num_filters, is_training)
 
@@ -924,7 +971,7 @@ def _default_hparams():
       sep_delta=0.001,  # Separation Loss (depends on world coordinates).
       noise=0.01,  # Noise added during estimating rotation. (depends on world coordinates).
       learning_rate=1.0e-3,
-      loss_occ=1.0, # 1.0 if using synthetic occlusions. 0.0 otherwise
+      loss_occ=0.25, # change of if using synthetic occlusions. 0.0 is no chance
   )
 
   if FLAGS.hparams:
